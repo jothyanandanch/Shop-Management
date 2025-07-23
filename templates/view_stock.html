@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Management - SS Star Flex</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with Logo and Company Details -->
+        <header class="header">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
+                <div class="brand-info">
+                    <h1 class="brand-name">SS Star Flex</h1>
+                    <p class="brand-contact">Mobile: 08814247549</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="user-info">
+                    <i class="fas fa-user"></i>
+                    {{ session.username }}
+                </span>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </header>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash--{{ category }}">
+                <div class="flash__message">{{ message }}</div>
+                <button class="flash__close">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <a href="{{ url_for('add_card_route') }}" class="action-btn">
+                    <i class="fas fa-plus"></i>
+                    Add New Card
+                </a>
+                <button class="action-btn" onclick="toggleRemainingInventory()">
+                    <i class="fas fa-warehouse"></i>
+                    <span id="toggleText">Show Remaining Inventory</span>
+                </button>
+            </div>
+
+            <!-- All Stock Section -->
+            <div class="stock-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-boxes"></i>
+                        All Stock
+                    </h2>
+                    <div class="search-container">
+                        <input type="text" id="stockSearch" placeholder="Search cards..." class="search-input">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="table" id="stockTable">
+                        <thead>
+                            <tr>
+                                <th>Card Type</th>
+                                <th>Total Quantity</th>
+                                <th>Allocated</th>
+                                <th>Available</th>
+                                <th>Price (₹)</th>
+                                {% if session.user_role == 'admin' %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in cards %}
+                            <tr class="stock-row">
+                                <td class="card-type">
+                                    <div class="card-info">
+                                        <i class="fas fa-credit-card"></i>
+                                        <span>{{ card[1] }}</span>
+                                    </div>
+                                </td>
+                                <td class="quantity">
+                                    <span class="badge badge-total">{{ card[2] }}</span>
+                                </td>
+                                <td class="allocated">
+                                    <span class="badge badge-allocated">{{ card[4] if card[4] else 0 }}</span>
+                                </td>
+                                <td class="available">
+                                    {% set remaining = card[2] - (card[4] if card[4] else 0) %}
+                                    <span class="badge badge-available {% if remaining <= 0 %}badge-danger{% elif remaining <= 5 %}badge-warning{% else %}badge-success{% endif %}">
+                                        {{ remaining }}
+                                    </span>
+                                </td>
+                                <td class="price">
+                                    <span class="price-value">₹{{ card[3] }}</span>
+                                </td>
+                                {% if session.user_role == 'admin' %}
+                                <td class="actions">
+                                    <a href="{{ url_for('edit_card', card_id=card[0]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i>
+                                        Edit
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Remaining Inventory Section (Initially Hidden) -->
+            <div class="stock-section" id="remainingInventorySection" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-warehouse"></i>
+                        Remaining Inventory
+                        <span class="inventory-count">(Available for Sale)</span>
+                    </h2>
+                    <div class="inventory-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Available:</span>
+                            <span class="stat-value" id="totalAvailable">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="table" id="remainingTable">
+                        <thead>
+                            <tr>
+                                <th>Card Type</th>
+                                <th>Total Stock</th>
+                                <th>Allocated</th>
+                                <th>Remaining</th>
+                                <th>Price (₹)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in cards %}
+                            {% set remaining = card[2] - (card[4] if card[4] else 0) %}
+                            {% if remaining > 0 %}
+                            <tr class="remaining-row">
+                                <td class="card-type">
+                                    <div class="card-info">
+                                        <i class="fas fa-credit-card"></i>
+                                        <span>{{ card[1] }}</span>
+                                    </div>
+                                </td>
+                                <td class="total-stock">
+                                    <span class="badge badge-total">{{ card[2] }}</span>
+                                </td>
+                                <td class="allocated">
+                                    <span class="badge badge-allocated">{{ card[4] if card[4] else 0 }}</span>
+                                </td>
+                                <td class="remaining">
+                                    <span class="badge badge-remaining">{{ remaining }}</span>
+                                </td>
+                                <td class="price">
+                                    <span class="price-value">₹{{ card[3] }}</span>
+                                </td>
+                                <td class="status">
+                                    {% if remaining > 10 %}
+                                    <span class="status-badge status-good">
+                                        <i class="fas fa-check-circle"></i>
+                                        Good Stock
+                                    </span>
+                                    {% elif remaining > 5 %}
+                                    <span class="status-badge status-low">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Low Stock
+                                    </span>
+                                    {% else %}
+                                    <span class="status-badge status-critical">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        Critical
+                                    </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Stock Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Total Cards</h3>
+                        <p class="card-value">{{ cards|length }}</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-warehouse"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Total Stock</h3>
+                        <p class="card-value">{{ cards|sum(attribute=2) }}</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Total Allocated</h3>
+                        <p class="card-value">{{ cards|sum(attribute=4) or 0 }}</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Toggle Remaining Inventory Section
+        function toggleRemainingInventory() {
+            const section = document.getElementById('remainingInventorySection');
+            const toggleText = document.getElementById('toggleText');
+            
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                toggleText.textContent = 'Hide Remaining Inventory';
+                calculateTotalAvailable();
+            } else {
+                section.style.display = 'none';
+                toggleText.textContent = 'Show Remaining Inventory';
+            }
+        }
+
+        // Calculate Total Available
+        function calculateTotalAvailable() {
+            const remainingRows = document.querySelectorAll('#remainingTable .remaining-row');
+            let total = 0;
+            
+            remainingRows.forEach(row => {
+                const remainingCell = row.querySelector('.remaining .badge-remaining');
+                total += parseInt(remainingCell.textContent);
+            });
+            
+            document.getElementById('totalAvailable').textContent = total;
+        }
+
+        // Search functionality
+        document.getElementById('stockSearch').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#stockTable .stock-row');
+            
+            rows.forEach(row => {
+                const cardType = row.querySelector('.card-type span').textContent.toLowerCase();
+                if (cardType.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Flash message close functionality
+        document.querySelectorAll('.flash__close').forEach(button => {
+            button.addEventListener('click', function() {
+                this.parentElement.style.display = 'none';
+            });
+        });
+
+        // Auto-hide flash messages after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(flash => {
+                flash.style.display = 'none';
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

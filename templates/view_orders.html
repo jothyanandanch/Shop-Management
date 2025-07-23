@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Orders - SS Star Flex</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='view_order.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
+                <div class="brand-info">
+                    <h1 class="brand-name">SS Star Flex</h1>
+                    <p class="brand-contact">Mobile: 08814247549</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="user-info">
+                    <i class="fas fa-user"></i>
+                    {{ session.username }}
+                </span>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="orders-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-shopping-cart"></i>
+                        All Orders
+                    </h2>
+                    <a href="{{ url_for('create_order_route') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        New Order
+                    </a>
+                </div>
+                
+                <div class="orders-table">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Customer Name</th>
+                                <th>Customer ID</th>
+                                <th>Order Date</th>
+                                <th>Total Amount</th>
+                                <th>Advance Paid</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Orders will be populated by JavaScript or server-side -->
+                            <tr>
+                                <td colspan="8" class="empty-state">
+                                    <i class="fas fa-inbox"></i>
+                                    <p>No orders found</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Add any JavaScript for dynamic order loading here
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Orders page loaded');
+        });
+    </script>
+</body>
+</html>

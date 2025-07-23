@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Payment - SS Star Flex</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/record_payment.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
+                <div class="brand-info">
+                    <h1 class="brand-name">
+                        <a href="{{ url_for('dashboard') }}" class="title-link">SS Star Flex</a>
+                    </h1>
+                    <p class="brand-contact">Mobile: 08814247549</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="user-info">
+                    <i class="fas fa-user"></i>
+                    {{ session.username }}
+                </span>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash--{{ category }}">
+                <div class="flash__message">{{ message }}</div>
+                <button class="flash__close">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <main class="main-content">
+            <!-- Order Summary Card -->
+            <div class="order-summary-card">
+                <h3 class="summary-title">
+                    <i class="fas fa-receipt"></i>
+                    Order Summary - #{{ order_id }}
+                </h3>
+                <div class="summary-details">
+                    <div class="customer-info">
+                        <div class="detail-row">
+                            <span class="detail-label">Customer Name:</span>
+                            <span class="detail-value customer-name">{{ order[1] }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Customer ID:</span>
+                            <span class="detail-value">{{ order[2] }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Order Date:</span>
+                            <span class="detail-value">{{ order[3] }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-breakdown">
+                        <div class="detail-row total-row">
+                            <span class="detail-label">Total Order Amount:</span>
+                            <span class="detail-value amount-total">₹{{ "%.2f"|format(order[4]) }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Initial Advance Paid:</span>
+                            <span class="detail-value amount-advance">₹{{ "%.2f"|format(order[5]) }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Additional Payments:</span>
+                            <span class="detail-value amount-additional">₹{{ "%.2f"|format(total_payments) }}</span>
+                        </div>
+                        <div class="detail-row balance-row">
+                            <span class="detail-label">Remaining Balance:</span>
+                            <span class="detail-value balance-amount {% if balance_amount > 0 %}balance-pending{% elif balance_amount == 0 %}balance-paid{% else %}balance-overpaid{% endif %}">
+                                ₹{{ "%.2f"|format(balance_amount) }}
+                                {% if balance_amount > 0 %}
+                                    <small class="balance-status">(Pending)</small>
+                                {% elif balance_amount == 0 %}
+                                    <small class="balance-status">(Fully Paid)</small>
+                                {% else %}
+                                    <small class="balance-status">(Overpaid)</small>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="status-info">
+                        <div class="detail-row">
+                            <span class="detail-label">Current Delivery Status:</span>
+                            <span class="detail-value">
+                                <span class="status-badge status-{{ order[6].lower() }}">
+                                    <i class="fas fa-{{ 'clock' if order[6] == 'Pending' else 'check-circle' }}"></i>
+                                    {{ order[6] }}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment History (if exists) -->
+            {% if payment_history %}
+            <div class="payment-history-card">
+                <h3 class="history-title">
+                    <i class="fas fa-history"></i>
+                    Payment History
+                </h3>
+                <div class="history-list">
+                    {% for payment in payment_history %}
+                    <div class="history-item">
+                        <div class="payment-info">
+                            <div class="payment-amount">₹{{ "%.2f"|format(payment[1]) }}</div>
+                            <div class="payment-date">{{ payment[2] }}</div>
+                        </div>
+                        {% if payment[3] %}
+                        <div class="payment-note">
+                            <i class="fas fa-sticky-note"></i>
+                            {{ payment[3] }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Payment Form -->
+            <div class="payment-form-card">
+                <div class="form-header">
+                    <h2 class="form-title">
+                        <i class="fas fa-credit-card"></i>
+                        Record New Payment
+                    </h2>
+                    <div class="quick-actions">
+                        {% if balance_amount > 0 %}
+                        <button type="button" class="quick-pay-btn" onclick="setFullBalance()">
+                            <i class="fas fa-magic"></i>
+                            Pay Full Balance (₹{{ "%.2f"|format(balance_amount) }})
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <form method="POST" class="form" id="paymentForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="amount" class="form-label">
+                                <i class="fas fa-rupee-sign"></i>
+                                Payment Amount (₹)
+                            </label>
+                            <input type="number" id="amount" name="amount" 
+                                   class="form-input" required min="0.01" step="0.01" 
+                                   max="{{ balance_amount if balance_amount > 0 else 999999 }}"
+                                   placeholder="Enter payment amount">
+                            <small class="form-help">
+                                {% if balance_amount > 0 %}
+                                    Remaining balance: ₹{{ "%.2f"|format(balance_amount) }}
+                                {% else %}
+                                    Order is fully paid
+                                {% endif %}
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="date" class="form-label">
+                                <i class="fas fa-calendar"></i>
+                                Payment Date
+                            </label>
+                            <input type="date" id="date" name="date" 
+                                   class="form-input" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="delivery_status" class="form-label">
+                            <i class="fas fa-truck"></i>
+                            Update Delivery Status
+                        </label>
+                        <select id="delivery_status" name="delivery_status" class="form-select">
+                            <option value="">Keep Current Status ({{ order[6] }})</option>
+                            <option value="Pending" {% if order[6] == 'Pending' %}selected{% endif %}>
+                                <i class="fas fa-clock"></i> Pending
+                            </option>
+                            <option value="Delivered" {% if order[6] == 'Delivered' %}selected{% endif %}>
+                                <i class="fas fa-check-circle"></i> Delivered
+                            </option>
+                        </select>
+                        <small class="form-help">Optionally update the delivery status with this payment</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="note" class="form-label">
+                            <i class="fas fa-sticky-note"></i>
+                            Payment Notes (Optional)
+                        </label>
+                        <textarea id="note" name="note" 
+                                  class="form-input form-textarea" 
+                                  placeholder="Enter any additional notes about this payment (e.g., payment method, reference number, etc.)"
+                                  rows="4"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i>
+                            Record Payment
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i>
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Set today's date as default
+        document.getElementById('date').valueAsDate = new Date();
+        
+        // Flash message close functionality
+        document.querySelectorAll('.flash__close').forEach(button => {
+            button.addEventListener('click', function() {
+                this.parentElement.style.display = 'none';
+            });
+        });
+
+        // Payment amount validation
+        const amountInput = document.getElementById('amount');
+        const balanceAmount = { balance_amount };
+        
+        // Set full balance amount
+        function setFullBalance() {
+            if (balanceAmount > 0) {
+                amountInput.value = balanceAmount.toFixed(2);
+                amountInput.focus();
+            }
+        }
+
+        // Validate payment amount
+        amountInput.addEventListener('input', function() {
+            const enteredAmount = parseFloat(this.value) || 0;
+            
+            // Visual feedback for amount validation
+            if (balanceAmount > 0 && enteredAmount > balanceAmount) {
+                this.style.borderColor = '#ffc107';
+                this.style.backgroundColor = '#fff3cd';
+                showAmountWarning('Amount exceeds remaining balance');
+            } else if (enteredAmount <= 0) {
+                this.style.borderColor = '#dc3545';
+                this.style.backgroundColor = '#f8d7da';
+                showAmountWarning('Please enter a valid amount');
+            } else {
+                this.style.borderColor = '#28a745';
+                this.style.backgroundColor = '#f8fff8';
+                hideAmountWarning();
+            }
+        });
+
+        // Show amount warning
+        function showAmountWarning(message) {
+            hideAmountWarning(); // Remove existing warning
+            
+            const warning = document.createElement('div');
+            warning.className = 'amount-warning';
+            warning.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
+            amountInput.parentNode.appendChild(warning);
+        }
+
+        // Hide amount warning
+        function hideAmountWarning() {
+            const existingWarning = amountInput.parentNode.querySelector('.amount-warning');
+            if (existingWarning) {
+                existingWarning.remove();
+            }
+        }
+
+        // Form submission validation
+        document.getElementById('paymentForm').addEventListener('submit', function(e) {
+            const enteredAmount = parseFloat(amountInput.value) || 0;
+            
+            if (enteredAmount <= 0) {
+                e.preventDefault();
+                alert('Please enter a valid payment amount.');
+                return false;
+            }
+            
+            if (balanceAmount > 0 && enteredAmount > balanceAmount) {
+                const confirmOverpay = confirm(`Payment amount (₹${enteredAmount.toFixed(2)}) exceeds remaining balance (₹${balanceAmount.toFixed(2)}). Do you want to continue?`);
+                if (!confirmOverpay) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+
+        // Auto-hide flash messages after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(flash => {
+                flash.style.opacity = '0';
+                setTimeout(() => flash.style.display = 'none', 300);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
+

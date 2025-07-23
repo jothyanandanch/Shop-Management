@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SS Star Flex</title>    
+    <title>Dashboard - {{ current_user.username }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- Header with Logo and Company Details -->
+        <header class="header">
+            <div class="header__container">
+                <div class="header__brand">
+                    <div class="logo-section">
+                        <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
+                        
+                        <div class="brand-info">
+                            <h1 class="brand-name">SS Star Flex</h1>
+                            <p class="brand-contact">Mobile: 08814247549</p>
+                        </div>
+                    </div>
+                    <h1 class="header__title">
+                        <i class="fas fa-tachometer-alt"></i>
+                        Dashboard
+                    </h1>
+                </div>
+                <div class="header__user">
+                    <div class="user-badge">
+                        <i class="fas fa-user"></i>
+                        <span>{{ current_user.username }}</span>
+                    </div>
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Quick Actions -->
+            <div class="section">
+                <div class="section__header">
+                    <h2 class="section__title">
+                        <i class="fas fa-bolt"></i>
+                        Quick Actions
+                    </h2>
+                </div>
+                <div class="actions-grid">
+                    <a href="{{ url_for('add_card_route') }}" class="action-card">
+                        <div class="action-card__icon">
+                            <i class="fas fa-plus-circle"></i>
+                        </div>
+                        <h3 class="action-card__title">Add Card</h3>
+                        <p class="action-card__description">Add new card to inventory</p>
+                    </a>
+                    <a href="{{ url_for('view_stock') }}" class="action-card">
+                        <div class="action-card__icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <h3 class="action-card__title">View Stock</h3>
+                        <p class="action-card__description">Check current inventory</p>
+                    </a>
+                    <a href="{{ url_for('create_order_route') }}" class="action-card">
+                        <div class="action-card__icon">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <h3 class="action-card__title">Create Order</h3>
+                        <p class="action-card__description">Place new customer order</p>
+                    </a>
+                    <a href="{{ url_for('view_orders') }}" class="action-card">
+                        <div class="action-card__icon">
+                            <i class="fas fa-list"></i>
+                        </div>
+                        <h3 class="action-card__title">View Orders</h3>
+                        <p class="action-card__description">Check all orders</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Card Summary -->
+            <div class="section">
+                <div class="section__header">
+                    <h2 class="section__title">
+                        <i class="fas fa-credit-card"></i>
+                        Card Inventory Summary
+                    </h2>
+                    <div class="search__container">
+                        <input type="text" class="search__input" placeholder="Search cards..." id="cardSearch">
+                        <i class="fas fa-search search__icon"></i>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <table class="table" id="cardTable">
+                        <thead>
+                            <tr>
+                                <th class="table__header">Card Type</th>
+                                <th class="table__header">Quantity</th>
+                                <th class="table__header">Price</th>
+                                <th class="table__header">Allocated</th>
+                                {% if current_user.role == 'admin' %}
+                                <th class="table__header">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for card in card_summary %}
+                            <tr class="table__row">
+                                <td class="table__cell">
+                                    <div class="card-type">
+                                        <i class="fas fa-credit-card"></i>
+                                        {{ card[1] }}
+                                    </div>
+                                </td>
+                                <td class="table__cell">
+                                    <span class="badge badge--quantity">{{ card[2] }}</span>
+                                </td>
+                                <td class="table__cell">
+                                    <span class="price">₹{{ card[3] }}</span>
+                                </td>
+                                <td class="table__cell">
+                                    <span class="allocated">{{ card[4] }}</span>
+                                </td>
+                                {% if current_user.role == 'admin' %}
+                                <td class="table__cell">
+                                    <a href="{{ url_for('edit_card', card_id=card[0]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pending Orders (Changed from Pending Bills) -->
+            <div class="section">
+                <div class="section__header">
+                    <h2 class="section__title">
+                        <i class="fas fa-clock"></i>
+                        Pending Orders
+                        <div class="bills-counter">
+                            <span class="badge badge--count">{{ pending_orders|length if pending_orders else 0 }}</span>
+                        </div>
+                    </h2>
+                </div>
+                <div class="bills">
+                    {% if pending_orders %}
+                        {% for order in pending_orders %}
+                        <div class="bill-card">
+                            <div class="bill-card__customer">
+                                <i class="fas fa-user"></i>
+                                <span>{{ order[1] }}</span>
+                            </div>
+                            <div class="bill-card__amount">
+                                <i class="fas fa-rupee-sign"></i>
+                                <span>₹{{ order[4] }}</span>
+                            </div>
+                            <div class="bill-card__actions">
+                                <a href="{{ url_for('record_payment', order_id=order[0]) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-credit-card"></i>
+                                    Record Payment
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p class="empty-state__message">No pending orders</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Search functionality
+        document.getElementById('cardSearch').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#cardTable tbody tr');
+            
+            rows.forEach(row => {
+                const cardType = row.querySelector('.card-type').textContent.toLowerCase();
+                if (cardType.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        
+    </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+Flask
+psycopg2
+bcrypt
+Flask-Login

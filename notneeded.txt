@@ -1,0 +1,49 @@
+def delete_user(username):
+    """
+    Deletes a user from the 'users' table based on their username.
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            print("Failed to establish connection to database for user deletion.")
+            return None # Indicate failure
+
+        cursor = conn.cursor()
+
+        # SQL DELETE statement with parameterization (%s)
+        # Using username for deletion. You could also use user ID if preferred.
+        command = """DELETE FROM users WHERE username = %s"""
+
+        print(f"Attempting to delete user: {username}...")
+        cursor.execute(command, (username,)) # Pass the username as a tuple
+
+        # Check how many rows were affected to confirm deletion
+        rows_deleted = cursor.rowcount
+
+        conn.commit() # Commit the changes
+        
+        if rows_deleted > 0:
+            print(f"User '{username}' deleted successfully.")
+            return True # Indicate success
+        else:
+            print(f"User '{username}' not found or no rows deleted.")
+            return False
+
+    except Error as e:
+        print(f"Database error deleting user '{username}': {e}")
+        if conn:
+            conn.rollback() # Rollback on database error
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred during user deletion: {e}")
+        if conn:
+            conn.rollback() # Rollback on general error
+        return False
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+            print("Database connection closed for user deletion.")
