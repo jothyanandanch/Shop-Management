@@ -179,11 +179,11 @@ def get_all_orders():
 
 def generate_customer_id():
     """Generate sequential customer ID in format mmyyyyxxx"""
-    from datetime import datetime
+    from datetime import datetime,timezone
     
     conn, cursor = None, None
     try:
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         month = f"{now.month:02d}"
         year = str(now.year)
         prefix = month + year
