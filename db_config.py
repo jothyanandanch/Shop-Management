@@ -10,7 +10,7 @@ def get_db_connection():
             host='localhost',
             port='5432'
         )
-        return conn
+        
     except Error as e:
         print(f"Error Connecting to PostgreSQL databse: {e}")
         

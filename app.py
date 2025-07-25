@@ -1,4 +1,5 @@
 # app.py
+import time
 from flask import Flask, render_template, request, redirect, url_for, session, flash,jsonify
 from models import (
     get_user_by_username,
@@ -10,7 +11,8 @@ from models import (
     record_transaction,
     get_all_orders,
     generate_customer_id,
-    get_pending_orders
+    get_pending_orders,get_card_by_id, 
+    update_card
 )
 from auth import verify_password
 import os
@@ -97,7 +99,7 @@ def add_card_route():
     if add_card(card_type, int(quantity), Decimal(price)):
         flash(f"Card '{card_type}' added Successfully", 'success')
     else:
-        flash(f"Failed to add card '{card_type}'", 'error')
+        flash(f"Failed to add card '{card_type} !,Try Again or Contact Developer", 'error')
 
     return redirect(url_for('add_card_route'))
 
@@ -118,13 +120,13 @@ def view_stock():
 def edit_card(card_id):
     if not session.get('logged_in'):
         flash("Please login first.", 'info')
+        time.sleep(2)
         return redirect(url_for('login'))
 
     if session.get('user_role') != 'admin':
         flash("Unauthorized action. Admins only.", 'error')
         return redirect(url_for('dashboard'))
 
-    from models import get_card_by_id, update_card
     card_details = get_card_by_id(card_id)
 
     if request.method == 'GET':
@@ -163,8 +165,9 @@ def create_order_route():
         delivery_status = request.form.get('delivery_status')
         advance_paid = request.form.get('advance')
         total_amount = request.form.get('total_amount')
-
-        order_id = create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount)
+        payment=request.form.get('payment_status')
+        
+        order_id = create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment)
 
         selected_card_ids = request.form.getlist('card_ids')
         for card_id in selected_card_ids:
@@ -173,11 +176,12 @@ def create_order_route():
                 link_card_to_order(order_id, int(card_id), int(quantity))
 
         flash('Order created successfully!', 'success')
+        
         return redirect(url_for('create_order_route'))  # This will show a fresh form with next customer ID
 
     # GET request - generate the next customer ID for this order
     available_cards = get_all_cards()
-    from models import generate_customer_id
+    
     next_customer_id = generate_customer_id()
     
     return render_template('create_orders.html', 

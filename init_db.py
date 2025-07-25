@@ -23,7 +23,7 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL NOT NULL PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
+                password TEXT NOT NULL,
                 role TEXT NOT NULL
             )
             """,
@@ -44,7 +44,8 @@ def create_tables():
                 order_date DATE NOT NULL,
                 delivery_status TEXT CHECK(delivery_status IN ('Pending', 'Delivered')),
                 advance_paid DECIMAL(10,2) DEFAULT 0,
-                total_amount DECIMAL(10,2) DEFAULT 0
+                total_amount DECIMAL(10,2) DEFAULT 0,
+                payment_status TEXT CHECK(payment_status IN ('Paid','Pending'))
             )
             """,
             """

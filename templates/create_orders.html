@@ -8,7 +8,21 @@
     
 </head>
 <body>
-  <!-- Header Section -->
+    <!-- Add Flash Messages Section Here -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash flash--{{ category }}">
+            <div class="flash__message">{{ message }}</div>
+            <button class="flash__close">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+
 <!-- Header Section -->
   <header class="header">
     <div class="header-content">
@@ -34,7 +48,7 @@
           <div class="section-divider"></div>
         </section>
 
-        <form class="order-form" method="POST" action="/submit_order">
+        <form class="order-form" method="POST" action="/create_order">
           <!-- Customer Information -->
           <div class="form-group">
             <div class="input-group">
@@ -43,14 +57,15 @@
             </div>
           </div>
 
-          <div class="form-group">
-              <div class="input-group">
-                  <label for="customer_id" class="form-label">Customer ID (auto-assigned: ddmmXXX)</label>
-                  <input type="number" id="customer_id" name="customer_id" class="form-input" 
-                         value="{{ suggested_customer_id }}" required readonly>
-                  <small class="form-help">This ID is automatically assigned based on today's date</small>
-              </div>
-          </div>
+    <div class="form-group">
+        <div class="input-group">
+            <label for="customer_id" class="form-label">Customer ID (auto-assigned: mmyyyyXXX)</label>
+            <input type="number" id="customer_id" name="customer_id" class="form-input" 
+                   value="{{ suggested_customer_id }}" required readonly>
+            <small class="form-help">This ID is automatically assigned monthly (Format: 072025001, 072025002, etc.)</small>
+        </div>
+    </div>
+
 
 
           <div class="form-group">
@@ -133,6 +148,17 @@
         </div>
 
 
+            <div class="form-group">
+                <div class="input-group">
+                    <label for="payment_status" class="form-label">Payment Status</label>
+                    <select id="payment_status" name="payment_status" class="form-select" required>
+                        <option value="Pending">Pending</option>
+                        <option value="Paid">Paid</option>
+                    </select>
+                </div>
+            </div>
+            
+
           <!-- Delivery Status -->
           <div class="form-group">
             <div class="input-group">
@@ -143,6 +169,10 @@
               </select>
             </div>
           </div>
+          
+
+
+
 
           <!-- Submit Button -->
           <div class="form-actions">
@@ -295,7 +325,21 @@
                 this.style.backgroundColor = '';
             });
         });
-        
+        // Flash message functionality
+        document.querySelectorAll('.flash__close').forEach(button => {
+            button.addEventListener('click', function() {
+                this.parentElement.style.display = 'none';
+            });
+        });
+    
+        // Auto-hide flash messages after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(flash => {
+                flash.style.opacity = '0';
+                setTimeout(() => flash.style.display = 'none', 300);
+            });
+        }, 5000);
+            
         // Show warning when quantity exceeds available stock
         function showQuantityWarning(input, maxQty) {
             const existingWarning = input.parentNode.querySelector('.quantity-warning');

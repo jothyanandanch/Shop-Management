@@ -16,14 +16,14 @@ def create_user(username, plain_text_password, role):
         cursor = conn.cursor()
 
         # --- safety guard: reject if password looks like it is already hashed
-        if plain_text_password.startswith("scrypt:") or len(plain_text_password) == 97:
-            raise ValueError("Password appears to be already hashed, refusing to store")
+        if plain_text_password.startswith("scrypt:") or len(plain_text_password) >= 25:
+            raise ValueError("Password appears to be refusing to store")
 
         from auth import hash_password
         password_hash = hash_password(plain_text_password)
 
         cursor.execute(
-            "INSERT INTO users(username, password_hash, role) VALUES(%s, %s, %s)",
+            "INSERT INTO users(username, password, role) VALUES(%s, %s, %s)",
             (username, password_hash, role)
         )
         conn.commit()
@@ -47,7 +47,7 @@ def get_user_by_username(username):
             return None
 
         cursor = conn.cursor()
-        command = """SELECT id, username, password_hash, role FROM users WHERE username = %s"""
+        command = """SELECT id, username, password, role FROM users WHERE username = %s"""
         cursor.execute(command, (username,))
         return cursor.fetchone()
 
@@ -102,7 +102,7 @@ def get_all_cards():
 
 # ------------------- ORDER FUNCTIONS -------------------
 
-def create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount):
+def create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment_status):
     """Creates a new customer order."""
     conn, cursor = None, None
     try:
@@ -110,8 +110,8 @@ def create_order(customer_name, customer_id, order_date, delivery_status, advanc
         cursor = conn.cursor()
 
         command = """
-        INSERT INTO orders(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount)
-        VALUES(%s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO orders(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment_status)
+        VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
         cursor.execute(command, (
             customer_name,
@@ -119,7 +119,8 @@ def create_order(customer_name, customer_id, order_date, delivery_status, advanc
             order_date,
             delivery_status,
             Decimal(str(advance_paid)),
-            Decimal(str(total_amount))
+            Decimal(str(total_amount)),
+            payment_status
         ))
         order_id = cursor.fetchone()[0]
         conn.commit()
@@ -143,6 +144,10 @@ def link_card_to_order(order_id, card_id, quantity):
 
         command = """INSERT INTO order_cards(order_id, card_id, quantity) VALUES(%s, %s, %s)"""
         cursor.execute(command, (order_id, card_id, quantity))
+
+        cards_command="""UPDATE cards SET allocated=COALESCE(allocated,0)+%s WHERE id=%s
+        """
+        cursor.execute(cards_command,(quantity,card_id))
         conn.commit()
         return True
 
@@ -173,54 +178,59 @@ def get_all_orders():
 
 
 def generate_customer_id():
-    """Generate sequential customer ID in format ddmmXXX"""
+    """Generate sequential customer ID in format mmyyyyxxx"""
     from datetime import datetime
     
     conn, cursor = None, None
     try:
         now = datetime.now()
-        day = f"{now.day:02d}"      # 18
-        month = f"{now.month:02d}"  # 07
-        prefix = day + month        # 1807
+        month = f"{now.month:02d}"
+        year = str(now.year)
+        prefix = month + year
+        
+        # Create range boundaries for this month/year
+        min_id = int(f"{prefix}000")  # 072025000
+        max_id = int(f"{prefix}999")  # 072025999
+        
+        print(f"Debug: Month={month}, Year={year}, Prefix={prefix}")
+        print(f"Debug: Searching between {min_id} and {max_id}")
         
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get all customer IDs that start with today's date prefix
+        # Use numeric range instead of LIKE
         cursor.execute("""
             SELECT customer_id FROM orders 
-            WHERE CAST(customer_id AS TEXT) LIKE ?
+            WHERE customer_id >= %s AND customer_id <= %s
             ORDER BY customer_id DESC 
             LIMIT 1
-        """, (f"{prefix}%",))
+        """, (min_id, max_id))
         
         result = cursor.fetchone()
+        print(f"Debug: Last ID result = {result}")
         
         if result:
-            last_id = str(result[0])
-            # Check if it's the right format and extract serial
-            if len(last_id) == 7 and last_id.startswith(prefix):
-                last_serial = int(last_id[4:])  # Get last 3 digits
-                new_serial = last_serial + 1
-            else:
-                new_serial = 1
+            last_id = result[0]
+            # Extract the serial number (last 3 digits)
+            last_serial = last_id % 1000  # Gets last 3 digits
+            new_serial = last_serial + 1
+            print(f"Debug: Last serial = {last_serial}, New serial = {new_serial}")
         else:
             new_serial = 1
+            print(f"Debug: No existing records, starting with serial = 1")
         
-        # Create new ID: ddmmXXX
-        new_id = f"{prefix}{new_serial:03d}"
-        return int(new_id)
+        new_id = int(f"{prefix}{new_serial:03d}")
+        print(f"Debug: Generated ID = {new_id}")
+        return new_id
         
     except Exception as e:
         print(f"Error generating customer ID: {e}")
-        # Return today's first ID as fallback
         now = datetime.now()
-        fallback_id = f"{now.day:02d}{now.month:02d}001"
-        return int(fallback_id)
+        fallback_id = int(f"{now.month:02d}{now.year}001")
+        return fallback_id
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
-
 
 
 # ------------------- BILLING FUNCTIONS -------------------
@@ -313,9 +323,9 @@ def get_pending_orders():
         conn = get_db_connection()
         cursor = conn.cursor()
         command = """
-        SELECT id, customer_name, customer_id, order_date, total_amount, delivery_status
+        SELECT id, customer_name, customer_id, order_date, total_amount, delivery_status,payment_status
         FROM orders 
-        WHERE delivery_status = 'Pending'
+        WHERE delivery_status = 'Pending' OR payment_status ='Pending'
         ORDER BY order_date DESC
         """
         cursor.execute(command)
