@@ -40,7 +40,7 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS orders (
                 id BIGSERIAL PRIMARY KEY,
                 customer_name TEXT NOT NULL,
-                customer_id INTEGER NOT NULL,
+                order_id INTEGER NOT NULL UNIQUE,
                 order_date DATE NOT NULL,
                 delivery_status TEXT CHECK(delivery_status IN ('Pending', 'Delivered')),
                 advance_paid DECIMAL(10,2) DEFAULT 0,
@@ -51,7 +51,7 @@ def create_tables():
             """
             CREATE TABLE IF NOT EXISTS order_cards (
                 id BIGSERIAL PRIMARY KEY,
-                order_id INTEGER REFERENCES orders(id),
+                order_id INTEGER REFERENCES orders(order_id),
                 card_id INTEGER REFERENCES cards(id),
                 quantity INTEGER NOT NULL
             )

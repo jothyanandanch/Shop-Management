@@ -10,9 +10,13 @@ from models import (
     link_card_to_order,
     record_transaction,
     get_all_orders,
-    generate_customer_id,
+    generate_order_id,
     get_pending_orders,get_card_by_id, 
-    update_card
+    update_card,
+    get_order_details,
+    get_total_payments,
+    update_order_delivery_status,
+    update_payment_status
 )
 from auth import verify_password
 import os
@@ -74,12 +78,12 @@ def dashboard():
     role = session.get('user_role')
     
     card_summary = get_all_cards()
-    pending_orders = get_pending_orders()  # Changed from pending_bills
+    pending_orders = get_pending_orders()  
     
     return render_template('dashboard.html',
                          current_user={'username': username, 'role': role},
                          card_summary=card_summary,
-                         pending_orders=pending_orders,  # Changed from pending_bills
+                         pending_orders=pending_orders,
                          current_year=datetime.now().year)
 
 # ---------------------- STOCK ----------------------
@@ -112,7 +116,7 @@ def view_stock():
         return redirect(url_for('login'))
 
     cards = get_all_cards()
-    return render_template('view_stock.html', card_data=cards)
+    return render_template('stock.html', card_data=cards)
 
 
 
@@ -160,40 +164,36 @@ def create_order_route():
 
     if request.method == 'POST':
         customer_name = request.form.get('customer_name')
-        customer_id = request.form.get('customer_id')
+        order_id = request.form.get('order_id')
         order_date = request.form.get('order_date')
         delivery_status = request.form.get('delivery_status')
         advance_paid = request.form.get('advance')
         total_amount = request.form.get('total_amount')
-        payment=request.form.get('payment_status')
+        payment = request.form.get('payment_status')
         
-        order_id = create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment)
+        curr_order_id = create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount, payment)
 
         selected_card_ids = request.form.getlist('card_ids')
         for card_id in selected_card_ids:
             quantity = request.form.get(f'quantities_{card_id}')
             if quantity:
-                link_card_to_order(order_id, int(card_id), int(quantity))
+                link_card_to_order(curr_order_id, int(card_id), int(quantity))
 
         flash('Order created successfully!', 'success')
-        
-        return redirect(url_for('create_order_route'))  # This will show a fresh form with next customer ID
+        return redirect(url_for('create_order_route'))
 
-    # GET request - generate the next customer ID for this order
+    # GET request - generate the next order ID
     available_cards = get_all_cards()
-    
-    next_customer_id = generate_customer_id()
+    next_order_id = generate_order_id()  
     
     return render_template('create_orders.html', 
                          card_types=available_cards, 
-                         suggested_customer_id=next_customer_id)
+                         suggested_order_id=next_order_id)  
 
 
 @app.route('/view_orders')
 def view_orders():
     return render_template('view_orders.html')
-
-
 
 @app.route('/record_payment/<order_id>', methods=['GET', 'POST'])
 def record_payment(order_id):
@@ -201,23 +201,72 @@ def record_payment(order_id):
         return redirect(url_for('login'))
 
     if request.method == 'GET':
-        return render_template('record_payment.html', order_id=order_id)
+        # Your existing GET logic remains the same
+        
+        
+        order = get_order_details(order_id)
+        if not order:
+            flash('Order not found!', 'error')
+            return redirect(url_for('dashboard'))
+        
+        total_payments = get_total_payments(order_id)
+        balance_amount = float(order[4]) - float(order[5]) - total_payments
+        
+        return render_template('record_payment.html', 
+                             order=order,
+                             order_id=order_id, 
+                             balance_amount=balance_amount,
+                             total_payments=total_payments)
 
+    # POST logic with payment status update
     amount = request.form.get('amount')
     date = request.form.get('date')
     note = request.form.get('note')
+    delivery_status = request.form.get('delivery_status')
+    # In the POST section, add:
+    manual_payment_status = request.form.get('payment_status')
+
+    if manual_payment_status:
+        # User manually selected status
+        update_payment_status(order_id, manual_payment_status)
+    else:
+        # Auto-calculate based on balance
+        if new_balance <= 0:
+            update_payment_status(order_id, 'Paid')
+        else:
+            update_payment_status(order_id, 'Pending')
 
     if not amount or not date:
         flash("Amount and Date are required fields.", 'error')
         return redirect(url_for('record_payment', order_id=order_id))
 
+    # Record the transaction
     success = record_transaction(order_id, date, amount, note)
+    
     if success:
-        flash("Transaction Stored Successfully", 'success')
+        # Calculate new balance after this payment
+               
+        order = get_order_details(order_id)
+        total_payments = get_total_payments(order_id) + float(amount)  # Include current payment
+        new_balance = float(order[4]) - float(order[5]) - total_payments  # total - advance - all_payments
+        
+        # Automatically update payment status based on balance
+        if new_balance <= 0:
+            update_payment_status(order_id, 'Paid')
+        else:
+            update_payment_status(order_id, 'Pending')
+        
+        # Update delivery status if needed
+        if delivery_status:
+            from models import update_order_delivery_status
+            update_order_delivery_status(order_id, delivery_status)
+        
+        flash("Payment recorded and status updated successfully!", 'success')
     else:
-        flash("Failed to store transaction. Try again.", 'error')
+        flash("Failed to record payment. Try again.", 'error')
 
     return redirect(url_for('dashboard'))
+
 
 # ---------------------- BILLS ----------------------
 

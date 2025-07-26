@@ -102,7 +102,7 @@ def get_all_cards():
 
 # ------------------- ORDER FUNCTIONS -------------------
 
-def create_order(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment_status):
+def create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status):
     """Creates a new customer order."""
     conn, cursor = None, None
     try:
@@ -110,12 +110,12 @@ def create_order(customer_name, customer_id, order_date, delivery_status, advanc
         cursor = conn.cursor()
 
         command = """
-        INSERT INTO orders(customer_name, customer_id, order_date, delivery_status, advance_paid, total_amount,payment_status)
-        VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO orders(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status)
+        VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING order_id
         """
         cursor.execute(command, (
             customer_name,
-            customer_id,
+            order_id,
             order_date,
             delivery_status,
             Decimal(str(advance_paid)),
@@ -159,6 +159,24 @@ def link_card_to_order(order_id, card_id, quantity):
         if cursor: cursor.close()
         if conn: conn.close()
 
+def get_order_details(order_id):
+    """Get order details by ID"""
+    conn, cursor = None, None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, customer_name, order_id, order_date, total_amount, 
+                   advance_paid, delivery_status, payment_status 
+            FROM orders WHERE id = %s
+        """, (order_id,))
+        return cursor.fetchone()
+    except Exception as e:
+        print(f"Error fetching order details: {e}")
+        return None
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
 
 def get_all_orders():
     """Fetches all orders from the database."""
@@ -177,7 +195,7 @@ def get_all_orders():
         if conn: conn.close()
 
 
-def generate_customer_id():
+def generate_order_id():
     """Generate sequential customer ID in format mmyyyyxxx"""
     from datetime import datetime,timezone
     
@@ -200,9 +218,9 @@ def generate_customer_id():
         
         # Use numeric range instead of LIKE
         cursor.execute("""
-            SELECT customer_id FROM orders 
-            WHERE customer_id >= %s AND customer_id <= %s
-            ORDER BY customer_id DESC 
+            SELECT order_id FROM orders 
+            WHERE order_id >= %s AND order_id <= %s
+            ORDER BY order_id DESC 
             LIMIT 1
         """, (min_id, max_id))
         
@@ -255,6 +273,64 @@ def record_transaction(order_id, transaction_date, amount, note):
         if cursor: cursor.close()
         if conn: conn.close()
 
+def get_total_payments(order_id):
+    """Get total additional payments made for an order"""
+    conn, cursor = None, None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COALESCE(SUM(amount), 0) as total_payments 
+            FROM transactions WHERE order_id = %s
+        """, (order_id,))
+        result = cursor.fetchone()
+        return float(result[0]) if result else 0.0
+    except Exception as e:
+        print(f"Error fetching total payments: {e}")
+        return 0.0
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
+def update_order_delivery_status(order_id, status):
+    """Update order delivery status"""
+    conn, cursor = None, None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE orders SET delivery_status = %s WHERE id = %s
+        """, (status, order_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating delivery status: {e}")
+        return False
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
+def update_payment_status(order_id, status):
+    """Update order payment status"""
+    conn, cursor = None, None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE orders SET payment_status = %s WHERE id = %s
+        """, (status, order_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating payment status: {e}")
+        return False
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
 def get_pending_bills(threshold=50.00):
     """Fetches orders with unpaid amounts above a threshold."""
     conn, cursor = None, None
@@ -297,6 +373,7 @@ def get_card_by_id(card_id):
         if cursor: cursor.close()
         if conn: conn.close()
 
+
 def update_card(card_id, quantity, price):
     """Updates quantity and price for a given card."""
     conn, cursor = None, None
@@ -323,7 +400,7 @@ def get_pending_orders():
         conn = get_db_connection()
         cursor = conn.cursor()
         command = """
-        SELECT id, customer_name, customer_id, order_date, total_amount, delivery_status,payment_status
+        SELECT id, customer_name, order_id, order_date, total_amount, delivery_status,payment_status
         FROM orders 
         WHERE delivery_status = 'Pending' OR payment_status ='Pending'
         ORDER BY order_date DESC

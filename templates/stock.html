@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Management - SS Star Flex</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='stock.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
@@ -14,7 +14,9 @@
             <div class="logo-section">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
                 <div class="brand-info">
-                    <h1 class="brand-name">SS Star Flex</h1>
+                    <h1 class="brand-name">
+                        <a href="{{ url_for('dashboard') }}" class="title-link">SS Star Flex</a>
+                    </h1>
                     <p class="brand-contact">Mobile: 08814247549</p>
                 </div>
             </div>
@@ -55,6 +57,12 @@
                     <i class="fas fa-warehouse"></i>
                     <span id="toggleText">Show Remaining Inventory</span>
                 </button>
+                <div class="stock-health">
+                    <span class="health-indicator">
+                        <i class="fas fa-chart-line"></i>
+                        Stock Health: <span id="stockHealth">Calculating...</span>
+                    </span>
+                </div>
             </div>
 
             <!-- All Stock Section -->
@@ -62,11 +70,22 @@
                 <div class="section-header">
                     <h2 class="section-title">
                         <i class="fas fa-boxes"></i>
-                        All Stock
+                        All Stock Overview
                     </h2>
-                    <div class="search-container">
-                        <input type="text" id="stockSearch" placeholder="Search cards..." class="search-input">
-                        <i class="fas fa-search search-icon"></i>
+                    <div class="header-controls">
+                        <div class="search-container">
+                            <input type="text" id="stockSearch" placeholder="Search cards..." class="search-input">
+                            <i class="fas fa-search search-icon"></i>
+                        </div>
+                        <div class="filter-controls">
+                            <select id="stockFilter" class="filter-select">
+                                <option value="all">All Cards</option>
+                                <option value="available">Available Only</option>
+                                <option value="low">Low Stock</option>
+                                <option value="critical">Critical Stock</option>
+                                <option value="out">Out of Stock</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 
@@ -79,6 +98,7 @@
                                 <th>Allocated</th>
                                 <th>Available</th>
                                 <th>Price (₹)</th>
+                                <th>Stock Status</th>
                                 {% if session.user_role == 'admin' %}
                                 <th>Actions</th>
                                 {% endif %}
@@ -86,7 +106,8 @@
                         </thead>
                         <tbody>
                             {% for card in cards %}
-                            <tr class="stock-row">
+                            {% set remaining = card[2] - (card[4] if card[4] else 0) %}
+                            <tr class="stock-row" data-remaining="{{ remaining }}">
                                 <td class="card-type">
                                     <div class="card-info">
                                         <i class="fas fa-credit-card"></i>
@@ -100,7 +121,6 @@
                                     <span class="badge badge-allocated">{{ card[4] if card[4] else 0 }}</span>
                                 </td>
                                 <td class="available">
-                                    {% set remaining = card[2] - (card[4] if card[4] else 0) %}
                                     <span class="badge badge-available {% if remaining <= 0 %}badge-danger{% elif remaining <= 5 %}badge-warning{% else %}badge-success{% endif %}">
                                         {{ remaining }}
                                     </span>
@@ -108,12 +128,41 @@
                                 <td class="price">
                                     <span class="price-value">₹{{ card[3] }}</span>
                                 </td>
+                                <td class="stock-status">
+                                    {% if remaining <= 0 %}
+                                    <span class="status-badge status-out">
+                                        <i class="fas fa-times-circle"></i>
+                                        Out of Stock
+                                    </span>
+                                    {% elif remaining <= 2 %}
+                                    <span class="status-badge status-critical">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        Critical
+                                    </span>
+                                    {% elif remaining <= 5 %}
+                                    <span class="status-badge status-low">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Low Stock
+                                    </span>
+                                    {% else %}
+                                    <span class="status-badge status-good">
+                                        <i class="fas fa-check-circle"></i>
+                                        Good Stock
+                                    </span>
+                                    {% endif %}
+                                </td>
                                 {% if session.user_role == 'admin' %}
                                 <td class="actions">
                                     <a href="{{ url_for('edit_card', card_id=card[0]) }}" class="btn btn-sm btn-primary">
                                         <i class="fas fa-edit"></i>
                                         Edit
                                     </a>
+                                    {% if remaining <= 5 %}
+                                    <button class="btn btn-sm btn-warning" onclick="restockAlert('{{ card[1] }}', {{ remaining }})">
+                                        <i class="fas fa-plus"></i>
+                                        Restock
+                                    </button>
+                                    {% endif %}
                                 </td>
                                 {% endif %}
                             </tr>
@@ -128,13 +177,17 @@
                 <div class="section-header">
                     <h2 class="section-title">
                         <i class="fas fa-warehouse"></i>
-                        Remaining Inventory
-                        <span class="inventory-count">(Available for Sale)</span>
+                        Available Inventory
+                        <span class="inventory-count">(Ready for Orders)</span>
                     </h2>
                     <div class="inventory-stats">
                         <div class="stat-item">
-                            <span class="stat-label">Total Available:</span>
+                            <span class="stat-label">Total Available Units:</span>
                             <span class="stat-value" id="totalAvailable">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Available Value:</span>
+                            <span class="stat-value" id="totalValue">₹0</span>
                         </div>
                     </div>
                 </div>
@@ -146,8 +199,9 @@
                                 <th>Card Type</th>
                                 <th>Total Stock</th>
                                 <th>Allocated</th>
-                                <th>Remaining</th>
-                                <th>Price (₹)</th>
+                                <th>Available</th>
+                                <th>Unit Price (₹)</th>
+                                <th>Available Value (₹)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -155,7 +209,7 @@
                             {% for card in cards %}
                             {% set remaining = card[2] - (card[4] if card[4] else 0) %}
                             {% if remaining > 0 %}
-                            <tr class="remaining-row">
+                            <tr class="remaining-row" data-value="{{ remaining * card[3] }}">
                                 <td class="card-type">
                                     <div class="card-info">
                                         <i class="fas fa-credit-card"></i>
@@ -174,11 +228,14 @@
                                 <td class="price">
                                     <span class="price-value">₹{{ card[3] }}</span>
                                 </td>
+                                <td class="total-value">
+                                    <span class="value-amount">₹{{ "%.2f"|format(remaining * card[3]) }}</span>
+                                </td>
                                 <td class="status">
                                     {% if remaining > 10 %}
                                     <span class="status-badge status-good">
                                         <i class="fas fa-check-circle"></i>
-                                        Good Stock
+                                        Excellent
                                     </span>
                                     {% elif remaining > 5 %}
                                     <span class="status-badge status-low">
@@ -200,15 +257,16 @@
                 </div>
             </div>
 
-            <!-- Stock Summary Cards -->
+            <!-- Enhanced Stock Summary Cards -->
             <div class="summary-cards">
                 <div class="summary-card">
                     <div class="card-icon">
-                        <i class="fas fa-boxes"></i>
+                        <i class="fas fa-layer-group"></i>
                     </div>
                     <div class="card-content">
-                        <h3 class="card-title">Total Cards</h3>
+                        <h3 class="card-title">Total Card Types</h3>
                         <p class="card-value">{{ cards|length }}</p>
+                        <small class="card-subtitle">Different varieties</small>
                     </div>
                 </div>
                 <div class="summary-card">
@@ -218,6 +276,7 @@
                     <div class="card-content">
                         <h3 class="card-title">Total Stock</h3>
                         <p class="card-value">{{ cards|sum(attribute=2) }}</p>
+                        <small class="card-subtitle">Units in inventory</small>
                     </div>
                 </div>
                 <div class="summary-card">
@@ -225,8 +284,19 @@
                         <i class="fas fa-shopping-cart"></i>
                     </div>
                     <div class="card-content">
-                        <h3 class="card-title">Total Allocated</h3>
+                        <h3 class="card-title">Allocated</h3>
                         <p class="card-value">{{ cards|sum(attribute=4) or 0 }}</p>
+                        <small class="card-subtitle">Units in orders</small>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Available</h3>
+                        <p class="card-value" id="totalAvailableCards">0</p>
+                        <small class="card-subtitle">Ready for sale</small>
                     </div>
                 </div>
             </div>
@@ -234,6 +304,12 @@
     </div>
 
     <script>
+        // Calculate totals on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            calculateTotals();
+            updateStockHealth();
+        });
+
         // Toggle Remaining Inventory Section
         function toggleRemainingInventory() {
             const section = document.getElementById('remainingInventorySection');
@@ -241,28 +317,73 @@
             
             if (section.style.display === 'none') {
                 section.style.display = 'block';
-                toggleText.textContent = 'Hide Remaining Inventory';
+                toggleText.textContent = 'Hide Available Inventory';
                 calculateTotalAvailable();
             } else {
                 section.style.display = 'none';
-                toggleText.textContent = 'Show Remaining Inventory';
+                toggleText.textContent = 'Show Available Inventory';
             }
         }
 
-        // Calculate Total Available
+        // Calculate all totals
+        function calculateTotals() {
+            const rows = document.querySelectorAll('#stockTable .stock-row');
+            let totalAvailable = 0;
+            
+            rows.forEach(row => {
+                const remaining = parseInt(row.getAttribute('data-remaining'));
+                totalAvailable += remaining;
+            });
+            
+            document.getElementById('totalAvailableCards').textContent = totalAvailable;
+        }
+
+        // Calculate Total Available with Value
         function calculateTotalAvailable() {
             const remainingRows = document.querySelectorAll('#remainingTable .remaining-row');
-            let total = 0;
+            let totalUnits = 0;
+            let totalValue = 0;
             
             remainingRows.forEach(row => {
                 const remainingCell = row.querySelector('.remaining .badge-remaining');
-                total += parseInt(remainingCell.textContent);
+                const units = parseInt(remainingCell.textContent);
+                const value = parseFloat(row.getAttribute('data-value'));
+                
+                totalUnits += units;
+                totalValue += value;
             });
             
-            document.getElementById('totalAvailable').textContent = total;
+            document.getElementById('totalAvailable').textContent = totalUnits;
+            document.getElementById('totalValue').textContent = '₹' + totalValue.toFixed(2);
         }
 
-        // Search functionality
+        // Update stock health indicator
+        function updateStockHealth() {
+            const rows = document.querySelectorAll('#stockTable .stock-row');
+            let critical = 0, low = 0, good = 0, out = 0;
+            
+            rows.forEach(row => {
+                const remaining = parseInt(row.getAttribute('data-remaining'));
+                if (remaining <= 0) out++;
+                else if (remaining <= 2) critical++;
+                else if (remaining <= 5) low++;
+                else good++;
+            });
+            
+            const healthElement = document.getElementById('stockHealth');
+            if (critical > 0 || out > 0) {
+                healthElement.textContent = 'Critical';
+                healthElement.className = 'health-critical';
+            } else if (low > 0) {
+                healthElement.textContent = 'Needs Attention';
+                healthElement.className = 'health-warning';
+            } else {
+                healthElement.textContent = 'Good';
+                healthElement.className = 'health-good';
+            }
+        }
+
+        // Enhanced search functionality
         document.getElementById('stockSearch').addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const rows = document.querySelectorAll('#stockTable .stock-row');
@@ -276,6 +397,45 @@
                 }
             });
         });
+
+        // Filter functionality
+        document.getElementById('stockFilter').addEventListener('change', function() {
+            const filterValue = this.value;
+            const rows = document.querySelectorAll('#stockTable .stock-row');
+            
+            rows.forEach(row => {
+                const remaining = parseInt(row.getAttribute('data-remaining'));
+                let show = true;
+                
+                switch(filterValue) {
+                    case 'available':
+                        show = remaining > 0;
+                        break;
+                    case 'low':
+                        show = remaining > 0 && remaining <= 5;
+                        break;
+                    case 'critical':
+                        show = remaining > 0 && remaining <= 2;
+                        break;
+                    case 'out':
+                        show = remaining <= 0;
+                        break;
+                    default:
+                        show = true;
+                }
+                
+                row.style.display = show ? '' : 'none';
+            });
+        });
+
+        // Restock alert function
+        function restockAlert(cardType, remaining) {
+            const message = `${cardType} has only ${remaining} units left. Would you like to add more stock?`;
+            if (confirm(message)) {
+                // Redirect to edit card page or show restock form
+                alert('Redirecting to restock form...');
+            }
+        }
 
         // Flash message close functionality
         document.querySelectorAll('.flash__close').forEach(button => {

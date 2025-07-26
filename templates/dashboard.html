@@ -102,15 +102,15 @@
                                 <th class="table__header">Card Type</th>
                                 <th class="table__header">Quantity</th>
                                 <th class="table__header">Price</th>
-                                <th class="table__header">Allocated</th>
+                                <th class="table__header">Remaining</th>
                                 {% if current_user.role == 'admin' %}
                                 <th class="table__header">Actions</th>
                                 {% endif %}
                             </tr>
                         </thead>
                         <tbody>
-                            {% for card in card_summary %}
-                            <tr class="table__row">
+                            {% for card in card_summary[:5] %}
+                            <tr class="table__row" data-card-type="{{ card[1]|lower }}">
                                 <td class="table__cell">
                                     <div class="card-type">
                                         <i class="fas fa-credit-card"></i>
@@ -124,7 +124,7 @@
                                     <span class="price">₹{{ card[3] }}</span>
                                 </td>
                                 <td class="table__cell">
-                                    <span class="allocated">{{ card[4] }}</span>
+                                    <span class="remaining">{{ card[2] - card[4] if card[4] else card[2] }}</span>
                                 </td>
                                 {% if current_user.role == 'admin' %}
                                 <td class="table__cell">
@@ -137,6 +137,16 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                    <div id="noResults" class="empty-state" style="display: none;">
+                        <i class="fas fa-search"></i>
+                        <p class="empty-state__message">No cards found matching your search</p>
+                    </div>
+                </div>
+                <div class="section-footer">
+                    <p class="info-text">
+                        <i class="fas fa-info-circle"></i>
+                        Showing top 5 cards. Use search to find specific cards from entire inventory.
+                    </p>
                 </div>
             </div>
 
@@ -182,23 +192,113 @@
         </main>
     </div>
 
-    <script>
-        // Search functionality
-        document.getElementById('cardSearch').addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#cardTable tbody tr');
-            
-            rows.forEach(row => {
-                const cardType = row.querySelector('.card-type').textContent.toLowerCase();
-                if (cardType.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-
-        
+    <!-- Hidden data for search functionality -->
+    <script type="application/json" id="allCardsData">
+        {{ card_summary|tojson|safe }}
     </script>
+
+    <script>
+        // Get all cards data for search functionality
+        const allCardsData = JSON.parse(document.getElementById('allCardsData').textContent);
+        
+        // Search functionality that works on entire database
+        document.getElementById('cardSearch').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            const tableBody = document.querySelector('#cardTable tbody');
+            const noResults = document.getElementById('noResults');
+            
+            if (searchTerm === '') {
+                // Show original 5 cards when search is empty
+                displayCards(allCardsData.slice(0, 5));
+                noResults.style.display = 'none';
+            } else {
+                // Filter all cards based on search term
+                const filteredCards = allCardsData.filter(card => 
+                    card[1].toLowerCase().includes(searchTerm)
+                );
+                
+                if (filteredCards.length > 0) {
+                    displayCards(filteredCards);
+                    noResults.style.display = 'none';
+                } else {
+                    tableBody.innerHTML = '';
+                    noResults.style.display = 'block';
+                }
+            }
+        });
+        
+        function displayCards(cards) {
+            const tableBody = document.querySelector('#cardTable tbody');
+            
+            
+            tableBody.innerHTML = cards.map(card => {
+                const remaining = card[2] - (card[4] || 0);
+                return `
+                    <tr class="table__row" data-card-type="${card[1].toLowerCase()}">
+                        <td class="table__cell">
+                            <div class="card-type">
+                                <i class="fas fa-credit-card"></i>
+                                ${card[1]}
+                            </div>
+                        </td>
+                        <td class="table__cell">
+                            <span class="badge badge--quantity">${card[2]}</span>
+                        </td>
+                        <td class="table__cell">
+                            <span class="price">₹${card[3]}</span>
+                        </td>
+                        <td class="table__cell">
+                            <span class="remaining">${remaining}</span>
+                        </td>
+                        ${isAdmin ? `
+                        <td class="table__cell">
+                            <a href="/edit_card/${card[0]}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                        ` : ''}
+                    </tr>
+                `;
+            }).join('');
+        }
+    </script>
+
+    <style>
+        .section-footer {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .info-text {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-text i {
+            color: #3b82f6;
+        }
+        
+        .remaining {
+            font-weight: 600;
+            color: #059669;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+        
+        .empty-state i {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #9ca3af;
+        }
+    </style>
 </body>
 </html>
