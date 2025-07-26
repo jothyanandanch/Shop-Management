@@ -534,20 +534,90 @@
             // window.location.href = `/order_details/${orderId}`;
         }
 
-        // Delete order with double confirmation (similar to delete card)
+                // Delete order with double confirmation and actual deletion
         function deleteOrder(orderId, orderNumber, customerName) {
             const firstConfirm = confirm(`Are you sure you want to delete Order #${orderNumber} for ${customerName}?\n\nThis action cannot be undone.`);
             
             if (!firstConfirm) return;
             
-            const finalConfirm = confirm(`FINAL CONFIRMATION:\n\nYou are about to permanently delete:\n- Order: #${orderNumber}\n- Customer: ${customerName}\n\nThis will also remove all card allocations!\n\nThis action is IRREVERSIBLE!`);
+            const finalConfirm = confirm(`FINAL CONFIRMATION:\n\nYou are about to permanently delete:\n- Order: #${orderNumber}\n- Customer: ${customerName}\n\nThis will also remove all card allocations and payment records!\n\nThis action is IRREVERSIBLE!`);
             
             if (finalConfirm) {
-                // Implement delete order functionality
-                alert('Delete order functionality - implement in backend');
-                // Similar to delete card implementation
+                // Show loading state
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                button.disabled = true;
+                
+                // Send delete request
+                fetch(`/delete_order/${orderId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Remove the row from table with animation
+                        const row = button.closest('tr');
+                        row.style.backgroundColor = '#ffebee';
+                        row.style.transition = 'all 0.5s ease';
+                        
+                        setTimeout(() => {
+                            row.remove();
+                            // Recalculate totals and health
+                            calculateTotals();
+                            updateOrdersHealth();
+                            
+                            // Show success message
+                            showFlashMessage('Order deleted successfully!', 'success');
+                        }, 500);
+                    } else {
+                        throw new Error('Delete failed');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting order:', error);
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    showFlashMessage('Failed to delete order. Please try again.', 'error');
+                });
             }
         }
+        
+// Function to show flash messages dynamically
+function showFlashMessage(message, category) {
+    const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
+    
+    const flashDiv = document.createElement('div');
+    flashDiv.className = `flash flash--${category}`;
+    flashDiv.innerHTML = `
+        <div class="flash__message">${message}</div>
+        <button class="flash__close">&times;</button>
+    `;
+    
+    flashContainer.appendChild(flashDiv);
+    
+    // Add close functionality
+    flashDiv.querySelector('.flash__close').addEventListener('click', function() {
+        flashDiv.remove();
+    });
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        if (flashDiv.parentNode) {
+            flashDiv.remove();
+        }
+    }, 5000);
+}
+
+function createFlashContainer() {
+    const container = document.createElement('div');
+    container.className = 'flash-messages';
+    document.querySelector('.container').appendChild(container);
+    return container;
+}
+
 
         // Export orders functionality
         function exportOrders() {
