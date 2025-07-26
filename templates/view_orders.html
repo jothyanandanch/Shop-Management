@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Orders - SS Star Flex</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='view_order.css') }}">
+    <title>Order Management - SS Star Flex</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='view_orders.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
+        <!-- Header with Logo and Company Details -->
         <header class="header">
             <div class="logo-section">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="SS Star Flex Logo" class="brand-logo">
                 <div class="brand-info">
-                    <h1 class="brand-name">SS Star Flex</h1>
+                    <h1 class="brand-name">
+                        <a href="{{ url_for('dashboard') }}" class="title-link">SS Star Flex</a>
+                    </h1>
                     <p class="brand-contact">Mobile: 08814247549</p>
                 </div>
             </div>
@@ -28,54 +31,550 @@
             </div>
         </header>
 
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="flash flash--{{ category }}">
+                <div class="flash__message">{{ message }}</div>
+                <button class="flash__close">&times;</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Main Content -->
         <main class="main-content">
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <a href="{{ url_for('create_order_route') }}" class="action-btn">
+                    <i class="fas fa-plus"></i>
+                    Create New Order
+                </a>
+                <button class="action-btn" onclick="togglePendingOrders()">
+                    <i class="fas fa-clock"></i>
+                    <span id="togglePendingText">Show Pending Only</span>
+                </button>
+                <button class="action-btn" onclick="exportOrders()">
+                    <i class="fas fa-download"></i>
+                    Export Orders
+                </button>
+                <div class="orders-health">
+                    <span class="health-indicator">
+                        <i class="fas fa-chart-pie"></i>
+                        Orders Status: <span id="ordersHealth">Calculating...</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- All Orders Section -->
             <div class="orders-section">
                 <div class="section-header">
                     <h2 class="section-title">
-                        <i class="fas fa-shopping-cart"></i>
+                        <i class="fas fa-receipt"></i>
                         All Orders
                     </h2>
-                    <a href="{{ url_for('create_order_route') }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i>
-                        New Order
-                    </a>
+                    <div class="header-controls">
+                        <div class="search-container">
+                            <input type="text" id="ordersSearch" placeholder="Search orders..." class="search-input">
+                            <i class="fas fa-search search-icon"></i>
+                        </div>
+                        <div class="filter-controls">
+                            <select id="paymentFilter" class="filter-select">
+                                <option value="all">All Payments</option>
+                                <option value="paid">Paid</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                            <select id="deliveryFilter" class="filter-select">
+                                <option value="all">All Deliveries</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+                        <div class="date-filter">
+                            <div class="date-group">
+                                <label for="fromDate">From:</label>
+                                <input type="date" id="fromDate" class="date-input">
+                            </div>
+                            <div class="date-group">
+                                <label for="toDate">To:</label>
+                                <input type="date" id="toDate" class="date-input">
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="filterByDate()">
+                                <i class="fas fa-filter"></i>
+                                Filter
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="clearDateFilter()">
+                                <i class="fas fa-times"></i>
+                                Clear
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="orders-table">
-                    <table class="table">
+                <div class="table-container">
+                    <table class="table" id="ordersTable">
                         <thead>
                             <tr>
                                 <th>Order ID</th>
                                 <th>Customer Name</th>
-                                <th>Customer ID</th>
                                 <th>Order Date</th>
                                 <th>Total Amount</th>
                                 <th>Advance Paid</th>
+                                <th>Balance</th>
                                 <th>Payment Status</th>
-                                <th>Status</th>
+                                <th>Delivery Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Orders will be populated by JavaScript or server-side -->
-                            <tr>
-                                <td colspan="8" class="empty-state">
-                                    <i class="fas fa-inbox"></i>
-                                    <p>No orders found</p>
+                            {% for order in orders %}
+                            {% set balance = order[4] - order[5] %}
+                            <tr class="order-row" 
+                                data-order-date="{{ order[3] }}" 
+                                data-payment-status="{{ order[7].lower() }}"
+                                data-delivery-status="{{ order[6].lower() }}">
+                                <td class="order-id">
+                                    <div class="id-info">
+                                        <i class="fas fa-hashtag"></i>
+                                        <span>{{ order[2] }}</span>
+                                    </div>
+                                </td>
+                                <td class="customer-name">
+                                    <div class="customer-info">
+                                        <i class="fas fa-user"></i>
+                                        <span>{{ order[1] }}</span>
+                                    </div>
+                                </td>
+                                <td class="order-date">
+                                    <span class="date-value">{{ order[3] }}</span>
+                                </td>
+                                <td class="total-amount">
+                                    <span class="amount-value">₹{{ "%.2f"|format(order[4]) }}</span>
+                                </td>
+                                <td class="advance-paid">
+                                    <span class="advance-value">₹{{ "%.2f"|format(order[5]) }}</span>
+                                </td>
+                                <td class="balance">
+                                    <span class="balance-value {% if balance > 0 %}balance-pending{% elif balance == 0 %}balance-paid{% else %}balance-overpaid{% endif %}">
+                                        ₹{{ "%.2f"|format(balance) }}
+                                    </span>
+                                </td>
+                                <td class="payment-status">
+                                    <span class="status-badge status-{{ order[7].lower() }}">
+                                        <i class="fas fa-{{ 'clock' if order[7] == 'Pending' else 'check-circle' }}"></i>
+                                        {{ order[7] }}
+                                    </span>
+                                </td>
+                                <td class="delivery-status">
+                                    <span class="status-badge status-{{ order[6].lower() }}">
+                                        <i class="fas fa-{{ 'truck' if order[6] == 'Pending' else 'check-circle' }}"></i>
+                                        {{ order[6] }}
+                                    </span>
+                                </td>
+                                <td class="actions">
+                                    <a href="{{ url_for('record_payment', order_id=order[0]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-credit-card"></i>
+                                        Payment
+                                    </a>
+                                    <button class="btn btn-sm btn-info" onclick="viewOrderDetails({{ order[0] }})">
+                                        <i class="fas fa-eye"></i>
+                                        Details
+                                    </button>
+                                    {% if session.user_role == 'admin' %}
+                                    <button class="btn btn-sm btn-danger" onclick="deleteOrder({{ order[0] }}, '{{ order[2] }}', '{{ order[1] }}')">
+                                        <i class="fas fa-trash"></i>
+                                        Delete
+                                    </button>
+                                    {% endif %}
                                 </td>
                             </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Pending Orders Section (Initially Hidden) -->
+            <div class="orders-section" id="pendingOrdersSection" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-clock"></i>
+                        Pending Orders
+                        <span class="orders-count">(Requires Attention)</span>
+                    </h2>
+                    <div class="pending-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Pending Payment:</span>
+                            <span class="stat-value" id="pendingPaymentCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Pending Delivery:</span>
+                            <span class="stat-value" id="pendingDeliveryCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="table" id="pendingTable">
+                        <thead>
+                            <tr>
+                                <th>Order ID</th>
+                                <th>Customer</th>
+                                <th>Order Date</th>
+                                <th>Balance Amount</th>
+                                <th>Days Pending</th>
+                                <th>Priority</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            {% set balance = order[4] - order[5] %}
+                            {% if order[7] == 'Pending' or order[6] == 'Pending' %}
+                            <tr class="pending-row">
+                                <td class="order-id">{{ order[2] }}</td>
+                                <td class="customer">{{ order[1] }}</td>
+                                <td class="order-date">{{ order[3] }}</td>
+                                <td class="balance">
+                                    <span class="balance-value balance-pending">₹{{ "%.2f"|format(balance) }}</span>
+                                </td>
+                                <td class="days-pending">
+                                    <span class="days-count">{{ (moment().date() - moment(order[3]).date()).days if moment else 'N/A' }} days</span>
+                                </td>
+                                <td class="priority">
+                                    {% set days_diff = 7 %}
+                                    {% if days_diff > 7 %}
+                                    <span class="priority-badge priority-high">High</span>
+                                    {% elif days_diff > 3 %}
+                                    <span class="priority-badge priority-medium">Medium</span>
+                                    {% else %}
+                                    <span class="priority-badge priority-low">Low</span>
+                                    {% endif %}
+                                </td>
+                                <td class="actions">
+                                    <a href="{{ url_for('record_payment', order_id=order[0]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-credit-card"></i>
+                                        Pay
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Order Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Total Orders</h3>
+                        <p class="card-value">{{ orders|length }}</p>
+                        <small class="card-subtitle">All time orders</small>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-rupee-sign"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Total Revenue</h3>
+                        <p class="card-value">₹{{ "%.0f"|format(orders|sum(attribute=4)) }}</p>
+                        <small class="card-subtitle">Order value</small>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Pending Payments</h3>
+                        <p class="card-value" id="totalPendingPayments">0</p>
+                        <small class="card-subtitle">Awaiting payment</small>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 class="card-title">Pending Deliveries</h3>
+                        <p class="card-value" id="totalPendingDeliveries">0</p>
+                        <small class="card-subtitle">Awaiting delivery</small>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
     <script>
-        // Add any JavaScript for dynamic order loading here
+        // Calculate totals on page load
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Orders page loaded');
+            calculateTotals();
+            updateOrdersHealth();
+            setDefaultDates();
         });
+
+        // Set default date range (last 30 days)
+        function setDefaultDates() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('toDate').valueAsDate = today;
+            document.getElementById('fromDate').valueAsDate = thirtyDaysAgo;
+        }
+
+        // Toggle Pending Orders Section
+        function togglePendingOrders() {
+            const section = document.getElementById('pendingOrdersSection');
+            const toggleText = document.getElementById('togglePendingText');
+            
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                toggleText.textContent = 'Hide Pending Orders';
+                calculatePendingStats();
+            } else {
+                section.style.display = 'none';
+                toggleText.textContent = 'Show Pending Only';
+            }
+        }
+
+        // Calculate all totals
+        function calculateTotals() {
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            let pendingPayments = 0;
+            let pendingDeliveries = 0;
+            
+            rows.forEach(row => {
+                const paymentStatus = row.getAttribute('data-payment-status');
+                const deliveryStatus = row.getAttribute('data-delivery-status');
+                
+                if (paymentStatus === 'pending') pendingPayments++;
+                if (deliveryStatus === 'pending') pendingDeliveries++;
+            });
+            
+            document.getElementById('totalPendingPayments').textContent = pendingPayments;
+            document.getElementById('totalPendingDeliveries').textContent = pendingDeliveries;
+        }
+
+        // Calculate pending orders statistics
+        function calculatePendingStats() {
+            const pendingRows = document.querySelectorAll('#pendingTable .pending-row');
+            let paymentPending = 0;
+            let deliveryPending = 0;
+            
+            // Count would need more specific logic based on your data structure
+            document.getElementById('pendingPaymentCount').textContent = paymentPending;
+            document.getElementById('pendingDeliveryCount').textContent = deliveryPending;
+        }
+
+        // Update orders health indicator
+        function updateOrdersHealth() {
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            let pending = 0, completed = 0;
+            
+            rows.forEach(row => {
+                const paymentStatus = row.getAttribute('data-payment-status');
+                const deliveryStatus = row.getAttribute('data-delivery-status');
+                
+                if (paymentStatus === 'pending' || deliveryStatus === 'pending') {
+                    pending++;
+                } else {
+                    completed++;
+                }
+            });
+            
+            const healthElement = document.getElementById('ordersHealth');
+            const ratio = completed / (pending + completed);
+            
+            if (ratio > 0.8) {
+                healthElement.textContent = 'Excellent';
+                healthElement.className = 'health-good';
+            } else if (ratio > 0.6) {
+                healthElement.textContent = 'Good';
+                healthElement.className = 'health-warning';
+            } else {
+                healthElement.textContent = 'Needs Attention';
+                healthElement.className = 'health-critical';
+            }
+        }
+
+        // Date filtering functionality
+        function filterByDate() {
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+            
+            const from = new Date(fromDate);
+            const to = new Date(toDate);
+            
+            if (from > to) {
+                alert('From date cannot be later than to date');
+                return;
+            }
+            
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const orderDate = new Date(row.getAttribute('data-order-date'));
+                
+                if (orderDate >= from && orderDate <= to) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show filtered count
+            showFilterMessage(`Showing ${visibleCount} orders from ${fromDate} to ${toDate}`);
+        }
+
+        // Clear date filter
+        function clearDateFilter() {
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+            
+            document.getElementById('fromDate').value = '';
+            document.getElementById('toDate').value = '';
+            setDefaultDates();
+            
+            hideFilterMessage();
+        }
+
+        // Show filter message
+        function showFilterMessage(message) {
+            let filterMsg = document.getElementById('filterMessage');
+            if (!filterMsg) {
+                filterMsg = document.createElement('div');
+                filterMsg.id = 'filterMessage';
+                filterMsg.className = 'filter-message';
+                document.querySelector('.section-header').appendChild(filterMsg);
+            }
+            filterMsg.textContent = message;
+            filterMsg.style.display = 'block';
+        }
+
+        // Hide filter message
+        function hideFilterMessage() {
+            const filterMsg = document.getElementById('filterMessage');
+            if (filterMsg) {
+                filterMsg.style.display = 'none';
+            }
+        }
+
+        // Enhanced search functionality
+        document.getElementById('ordersSearch').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            
+            rows.forEach(row => {
+                const customerName = row.querySelector('.customer-name span').textContent.toLowerCase();
+                const orderId = row.querySelector('.order-id span').textContent.toLowerCase();
+                
+                if (customerName.includes(searchTerm) || orderId.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Payment status filter
+        document.getElementById('paymentFilter').addEventListener('change', function() {
+            const filterValue = this.value;
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            
+            rows.forEach(row => {
+                const paymentStatus = row.getAttribute('data-payment-status');
+                
+                if (filterValue === 'all' || paymentStatus === filterValue) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // Delivery status filter
+        document.getElementById('deliveryFilter').addEventListener('change', function() {
+            const filterValue = this.value;
+            const rows = document.querySelectorAll('#ordersTable .order-row');
+            
+            rows.forEach(row => {
+                const deliveryStatus = row.getAttribute('data-delivery-status');
+                
+                if (filterValue === 'all' || deliveryStatus === filterValue) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+
+        // View order details
+        function viewOrderDetails(orderId) {
+            // You can implement this to show order details modal or redirect to details page
+            alert(`Viewing details for Order ID: ${orderId}`);
+            // window.location.href = `/order_details/${orderId}`;
+        }
+
+        // Delete order with double confirmation (similar to delete card)
+        function deleteOrder(orderId, orderNumber, customerName) {
+            const firstConfirm = confirm(`Are you sure you want to delete Order #${orderNumber} for ${customerName}?\n\nThis action cannot be undone.`);
+            
+            if (!firstConfirm) return;
+            
+            const finalConfirm = confirm(`FINAL CONFIRMATION:\n\nYou are about to permanently delete:\n- Order: #${orderNumber}\n- Customer: ${customerName}\n\nThis will also remove all card allocations!\n\nThis action is IRREVERSIBLE!`);
+            
+            if (finalConfirm) {
+                // Implement delete order functionality
+                alert('Delete order functionality - implement in backend');
+                // Similar to delete card implementation
+            }
+        }
+
+        // Export orders functionality
+        function exportOrders() {
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            
+            let exportUrl = '/export_orders';
+            if (fromDate && toDate) {
+                exportUrl += `?from=${fromDate}&to=${toDate}`;
+            }
+            
+            window.open(exportUrl, '_blank');
+        }
+
+        // Flash message close functionality
+        document.querySelectorAll('.flash__close').forEach(button => {
+            button.addEventListener('click', function() {
+                this.parentElement.style.display = 'none';
+            });
+        });
+
+        // Auto-hide flash messages after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(flash => {
+                flash.style.display = 'none';
+            });
+        }, 5000);
     </script>
 </body>
 </html>

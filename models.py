@@ -83,19 +83,57 @@ def add_card(card_type, quantity, price):
 
 
 def get_all_cards():
-    """Returns all card records."""
+    """Get all cards with allocated quantities"""
     conn, cursor = None, None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        command = """SELECT id, card_type, quantity, price, allocated FROM cards"""
-        cursor.execute(command)
-        return cursor.fetchall()
-
-    except Error as e:
+        
+        cursor.execute("""
+            SELECT c.id, c.card_type, c.quantity, c.price, 
+                   COALESCE(c.allocated, 0) as allocated
+            FROM cards c
+            ORDER BY c.card_type
+        """)
+        
+        cards = cursor.fetchall()
+        print(f"Debug: get_all_cards returned: {cards}")  #debug
+        return cards
+        
+    except Exception as e:
         print(f"Error fetching cards: {e}")
         return []
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
+def delete_card_by_id(card_id):
+    conn,cursor=None,None
+    try:
+        conn=get_db_connection()
+        cursor=conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM order_cards WHERE card_id =%s
+
+        """,(card_id,))
+        order_count=cursor.fetchone()[0]
+        if order_count>0:
+            print(f"Warning: Card {card_id} has {order_count} order allocations")
+        # Delete from order_cards first (foreign key constraint)
+        cursor.execute("DELETE FROM order_cards WHERE card_id = %s", (card_id,))
+        
+        # Delete the card
+        cursor.execute("DELETE FROM cards WHERE id = %s", (card_id,))
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting card: {e}")
+        if conn:
+            conn.rollback()
+        return False
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
@@ -179,20 +217,91 @@ def get_order_details(order_id):
         if conn: conn.close()
 
 def get_all_orders():
-    """Fetches all orders from the database."""
+    """Get all orders with customer and payment information"""
     conn, cursor = None, None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        command = """SELECT * FROM orders"""
-        cursor.execute(command)
+        
+        cursor.execute("""
+            SELECT id, customer_name, order_id, order_date, total_amount, 
+                   advance_paid, delivery_status, payment_status
+            FROM orders 
+            ORDER BY order_date DESC, id DESC
+        """)
+        
         return cursor.fetchall()
-    except Error as e:
+        
+    except Exception as e:
         print(f"Error fetching orders: {e}")
         return []
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
+
+
+def delete_order_by_id(order_id):
+    """Delete an order and all its related data"""
+    conn, cursor = None, None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        print(f"Debug: Attempting to delete order {order_id}")  # Add debug
+        
+        # Check if order has card allocations
+        cursor.execute("""
+            SELECT COUNT(*) FROM order_cards WHERE order_id = %s
+        """, (order_id,))
+        
+        card_allocations = cursor.fetchone()[0]
+        print(f"Debug: Found {card_allocations} card allocations")  # Add debug
+        
+        if card_allocations > 0:
+            # First, restore allocated quantities back to available
+            cursor.execute("""
+                UPDATE cards 
+                SET allocated = COALESCE(allocated, 0) - oc.quantity
+                FROM order_cards oc 
+                WHERE cards.id = oc.card_id AND oc.order_id = %s
+            """, (order_id,))
+            print(f"Debug: Restored {cursor.rowcount} card allocations")
+        
+        # Check if order has payment transactions
+        cursor.execute("""
+            SELECT COUNT(*) FROM transactions WHERE order_id = %s
+        """, (order_id,))
+        
+        transaction_count = cursor.fetchone()[0]
+        print(f"Debug: Found {transaction_count} payment transactions")
+        
+        # Delete in correct order to handle foreign key constraints
+        # 1. Delete payment transactions first
+        cursor.execute("DELETE FROM transactions WHERE order_id = %s", (order_id,))
+        print(f"Debug: Deleted {cursor.rowcount} transaction records")
+        
+        # 2. Delete order-card allocations
+        cursor.execute("DELETE FROM order_cards WHERE order_id = %s", (order_id,))
+        print(f"Debug: Deleted {cursor.rowcount} order_cards records")
+        
+        # 3. Delete the main order
+        cursor.execute("DELETE FROM orders WHERE id = %s", (order_id,))
+        print(f"Debug: Deleted {cursor.rowcount} order records")
+        
+        conn.commit()
+        print("Debug: Order deletion transaction committed successfully")
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting order: {e}")
+        print(f"Error type: {type(e).__name__}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
 
 
 def generate_order_id():

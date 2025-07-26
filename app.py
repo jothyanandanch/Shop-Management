@@ -17,6 +17,7 @@ from models import (
     get_total_payments,
     update_order_delivery_status,
     update_payment_status
+    ,delete_card_by_id,delete_order_by_id
 )
 from auth import verify_password
 import os
@@ -116,7 +117,9 @@ def view_stock():
         return redirect(url_for('login'))
 
     cards = get_all_cards()
-    return render_template('stock.html', card_data=cards)
+    print(f"Debug: Cards data = {cards}")  # For debugging
+    print(f"Debug: Number of cards = {len(cards) if cards else 0}")
+    return render_template('stock.html', cards=cards)
 
 
 
@@ -154,6 +157,25 @@ def edit_card(card_id):
 
     return redirect(url_for('view_stock'))
 
+@app.route('/delete_card/<int:card_id>',methods=['DELETE'])
+def delete_card(card_id):
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Not logged in'}),401
+    
+
+    if session.get('user_role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    try:
+        success = delete_card_by_id(card_id)
+        
+        if success:
+            return jsonify({'message': 'Card deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete card'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting card: {e}")
+        return jsonify({'error': 'Server error'}), 500
 # ---------------------- CUSTOMER/ORDER ----------------------
 
 
@@ -193,7 +215,36 @@ def create_order_route():
 
 @app.route('/view_orders')
 def view_orders():
-    return render_template('view_orders.html')
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    orders=get_all_orders()
+    return render_template('view_orders.html',orders=orders)
+
+
+
+@app.route('/delete_order/<int:order_id>', methods=['DELETE'])
+def delete_order(order_id):
+    if not session.get('logged_in'):
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    if session.get('user_role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    try:
+        
+        success = delete_order_by_id(order_id)
+        
+        if success:
+            return jsonify({'message': 'Order deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to delete order'}), 500
+            
+    except Exception as e:
+        print(f"Error deleting order: {e}")
+        return jsonify({'error': 'Server error'}), 500
+
+
+
 
 @app.route('/record_payment/<order_id>', methods=['GET', 'POST'])
 def record_payment(order_id):
@@ -258,7 +309,7 @@ def record_payment(order_id):
         
         # Update delivery status if needed
         if delivery_status:
-            from models import update_order_delivery_status
+            
             update_order_delivery_status(order_id, delivery_status)
         
         flash("Payment recorded and status updated successfully!", 'success')

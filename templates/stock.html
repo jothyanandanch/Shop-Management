@@ -36,9 +36,24 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
-            <div class="flash flash--{{ category }}">
-                <div class="flash__message">{{ message }}</div>
-                <button class="flash__close">&times;</button>
+            <div class="flash flash--{{ category }}" id="flash-{{ loop.index }}">
+                <div class="flash__content">
+                    <div class="flash__icon">
+                        {% if category == 'success' %}
+                            <i class="fas fa-check-circle"></i>
+                        {% elif category == 'error' %}
+                            <i class="fas fa-exclamation-circle"></i>
+                        {% elif category == 'warning' %}
+                            <i class="fas fa-exclamation-triangle"></i>
+                        {% else %}
+                            <i class="fas fa-info-circle"></i>
+                        {% endif %}
+                    </div>
+                    <div class="flash__message">{{ message }}</div>
+                    <button class="flash__close" onclick="closeFlash('flash-{{ loop.index }}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -57,12 +72,6 @@
                     <i class="fas fa-warehouse"></i>
                     <span id="toggleText">Show Remaining Inventory</span>
                 </button>
-                <div class="stock-health">
-                    <span class="health-indicator">
-                        <i class="fas fa-chart-line"></i>
-                        Stock Health: <span id="stockHealth">Calculating...</span>
-                    </span>
-                </div>
             </div>
 
             <!-- All Stock Section -->
@@ -107,7 +116,7 @@
                         <tbody>
                             {% for card in cards %}
                             {% set remaining = card[2] - (card[4] if card[4] else 0) %}
-                            <tr class="stock-row" data-remaining="{{ remaining }}">
+                            <tr class="stock-row" data-remaining="{{ remaining }}" data-card-id="{{ card[0] }}" data-card-name="{{ card[1] }}">
                                 <td class="card-type">
                                     <div class="card-info">
                                         <i class="fas fa-credit-card"></i>
@@ -151,6 +160,7 @@
                                     </span>
                                     {% endif %}
                                 </td>
+                                
                                 {% if session.user_role == 'admin' %}
                                 <td class="actions">
                                     <a href="{{ url_for('edit_card', card_id=card[0]) }}" class="btn btn-sm btn-primary">
@@ -158,11 +168,15 @@
                                         Edit
                                     </a>
                                     {% if remaining <= 5 %}
-                                    <button class="btn btn-sm btn-warning" onclick="restockAlert('{{ card[1] }}', {{ remaining }})">
+                                    <button class="btn btn-sm btn-warning" onclick="restockAlert('{{ card[1] }}', {{ remaining }}, {{ card[0] }})">
                                         <i class="fas fa-plus"></i>
                                         Restock
                                     </button>
                                     {% endif %}
+                                    <button class="btn btn-sm btn-danger" onclick="deleteCard({{ card[0] }}, '{{ card[1]|replace("'", "\\'") }}', {{ remaining }})">
+                                        <i class="fas fa-trash"></i>
+                                        Delete
+                                    </button>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -307,8 +321,28 @@
         // Calculate totals on page load
         document.addEventListener('DOMContentLoaded', function() {
             calculateTotals();
-            updateStockHealth();
+            
+            // Auto-hide flash messages after 5 seconds
+            const flashMessages = document.querySelectorAll('.flash');
+            flashMessages.forEach((flash, index) => {
+                setTimeout(() => {
+                    if (flash && flash.parentNode) {
+                        closeFlash(flash.id);
+                    }
+                }, 5000 + (index * 500));
+            });
         });
+
+        // Flash message functionality
+        function closeFlash(flashId) {
+            const flashElement = document.getElementById(flashId);
+            if (flashElement) {
+                flashElement.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => {
+                    flashElement.remove();
+                }, 300);
+            }
+        }
 
         // Toggle Remaining Inventory Section
         function toggleRemainingInventory() {
@@ -331,7 +365,7 @@
             let totalAvailable = 0;
             
             rows.forEach(row => {
-                const remaining = parseInt(row.getAttribute('data-remaining'));
+                const remaining = parseInt(row.getAttribute('data-remaining')) || 0;
                 totalAvailable += remaining;
             });
             
@@ -346,41 +380,17 @@
             
             remainingRows.forEach(row => {
                 const remainingCell = row.querySelector('.remaining .badge-remaining');
-                const units = parseInt(remainingCell.textContent);
-                const value = parseFloat(row.getAttribute('data-value'));
-                
-                totalUnits += units;
-                totalValue += value;
+                if (remainingCell) {
+                    const units = parseInt(remainingCell.textContent) || 0;
+                    const value = parseFloat(row.getAttribute('data-value')) || 0;
+                    
+                    totalUnits += units;
+                    totalValue += value;
+                }
             });
             
             document.getElementById('totalAvailable').textContent = totalUnits;
             document.getElementById('totalValue').textContent = '₹' + totalValue.toFixed(2);
-        }
-
-        // Update stock health indicator
-        function updateStockHealth() {
-            const rows = document.querySelectorAll('#stockTable .stock-row');
-            let critical = 0, low = 0, good = 0, out = 0;
-            
-            rows.forEach(row => {
-                const remaining = parseInt(row.getAttribute('data-remaining'));
-                if (remaining <= 0) out++;
-                else if (remaining <= 2) critical++;
-                else if (remaining <= 5) low++;
-                else good++;
-            });
-            
-            const healthElement = document.getElementById('stockHealth');
-            if (critical > 0 || out > 0) {
-                healthElement.textContent = 'Critical';
-                healthElement.className = 'health-critical';
-            } else if (low > 0) {
-                healthElement.textContent = 'Needs Attention';
-                healthElement.className = 'health-warning';
-            } else {
-                healthElement.textContent = 'Good';
-                healthElement.className = 'health-good';
-            }
         }
 
         // Enhanced search functionality
@@ -389,11 +399,10 @@
             const rows = document.querySelectorAll('#stockTable .stock-row');
             
             rows.forEach(row => {
-                const cardType = row.querySelector('.card-type span').textContent.toLowerCase();
-                if (cardType.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
+                const cardTypeElement = row.querySelector('.card-type span');
+                if (cardTypeElement) {
+                    const cardType = cardTypeElement.textContent.toLowerCase();
+                    row.style.display = cardType.includes(searchTerm) ? '' : 'none';
                 }
             });
         });
@@ -404,7 +413,7 @@
             const rows = document.querySelectorAll('#stockTable .stock-row');
             
             rows.forEach(row => {
-                const remaining = parseInt(row.getAttribute('data-remaining'));
+                const remaining = parseInt(row.getAttribute('data-remaining')) || 0;
                 let show = true;
                 
                 switch(filterValue) {
@@ -428,28 +437,141 @@
             });
         });
 
-        // Restock alert function
-        function restockAlert(cardType, remaining) {
+        // Fixed restock alert function
+        function restockAlert(cardType, remaining, cardId) {
             const message = `${cardType} has only ${remaining} units left. Would you like to add more stock?`;
             if (confirm(message)) {
-                // Redirect to edit card page or show restock form
-                alert('Redirecting to restock form...');
+                window.location.href = `/edit_card/${cardId}`;
             }
         }
 
-        // Flash message close functionality
-        document.querySelectorAll('.flash__close').forEach(button => {
-            button.addEventListener('click', function() {
-                this.parentElement.style.display = 'none';
-            });
-        });
+        // Delete card with confirmation
+        function deleteCard(cardId, cardType, remaining) {
+            console.log('Delete function called:', { cardId, cardType, remaining });
+            
+            // First confirmation
+            const firstConfirm = confirm(`Are you sure you want to delete "${cardType}"?\n\nThis action cannot be undone.`);
+            
+            if (!firstConfirm) {
+                return;
+            }
+            
+            // Check if card has remaining inventory or allocations
+            if (remaining > 0) {
+                const inventoryWarning = confirm(`WARNING: "${cardType}" still has ${remaining} units in stock!\n\nDeleting this card will permanently remove all inventory data.\n\nAre you ABSOLUTELY SURE you want to continue?`);
+                
+                if (!inventoryWarning) {
+                    return;
+                }
+            }
+            
+            // Second confirmation - final warning
+            const finalConfirm = confirm(`FINAL CONFIRMATION:\n\nYou are about to permanently delete:\n- Card Type: ${cardType}\n- Remaining Stock: ${remaining} units\n\nThis action is IRREVERSIBLE!\n\nContinue with deletion?`);
+            
+            if (finalConfirm) {
+                // Find the delete button for this card
+                const deleteButtons = document.querySelectorAll('button.btn-danger');
+                let targetButton = null;
+                
+                deleteButtons.forEach(button => {
+                    const onclick = button.getAttribute('onclick');
+                    if (onclick && onclick.includes(`deleteCard(${cardId},`)) {
+                        targetButton = button;
+                    }
+                });
+                
+                if (!targetButton) {
+                    console.error('Delete button not found');
+                    showFlashMessage('Error: Could not find delete button', 'error');
+                    return;
+                }
+                
+                const originalText = targetButton.innerHTML;
+                targetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                targetButton.disabled = true;
+                
+                // Send delete request
+                fetch(`/delete_card/${cardId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    console.log('Delete response:', response);
+                    if (response.ok) {
+                        // Remove the row from table
+                        const row = targetButton.closest('tr');
+                        if (row) {
+                            row.style.backgroundColor = '#ffebee';
+                            row.style.transition = 'all 0.5s ease';
+                            
+                            setTimeout(() => {
+                                row.remove();
+                                // Recalculate totals
+                                calculateTotals();
+                                
+                                // Show success message
+                                showFlashMessage('Card deleted successfully!', 'success');
+                            }, 500);
+                        }
+                    } else {
+                        return response.text().then(text => {
+                            throw new Error(`Delete failed: ${response.status} - ${text}`);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting card:', error);
+                    targetButton.innerHTML = originalText;
+                    targetButton.disabled = false;
+                    showFlashMessage(`Failed to delete card: ${error.message}`, 'error');
+                });
+            }
+        }
 
-        // Auto-hide flash messages after 5 seconds
-        setTimeout(() => {
-            document.querySelectorAll('.flash').forEach(flash => {
-                flash.style.display = 'none';
-            });
-        }, 5000);
+        // Function to show flash messages dynamically
+        function showFlashMessage(message, category) {
+            const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
+            
+            const flashId = 'flash-' + Date.now();
+            const flashDiv = document.createElement('div');
+            flashDiv.className = `flash flash--${category}`;
+            flashDiv.id = flashId;
+            flashDiv.innerHTML = `
+                <div class="flash__content">
+                    <div class="flash__icon">
+                        ${category === 'success' ? '<i class="fas fa-check-circle"></i>' : 
+                          category === 'error' ? '<i class="fas fa-exclamation-circle"></i>' : 
+                          category === 'warning' ? '<i class="fas fa-exclamation-triangle"></i>' : 
+                          '<i class="fas fa-info-circle"></i>'}
+                    </div>
+                    <div class="flash__message">${message}</div>
+                    <button class="flash__close" onclick="closeFlash('${flashId}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            flashContainer.appendChild(flashDiv);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                if (flashDiv.parentNode) {
+                    closeFlash(flashId);
+                }
+            }, 5000);
+        }
+        
+        function createFlashContainer() {
+            const container = document.createElement('div');
+            container.className = 'flash-messages';
+            document.body.appendChild(container);
+            return container;
+        }
     </script>
+
+    
 </body>
 </html>

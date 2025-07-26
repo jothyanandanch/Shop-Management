@@ -195,6 +195,46 @@ body {
     padding: 0;
 }
 
+
+/* Delete Button Styles */
+.btn-danger {
+    background: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+    border-color: #bd2130;
+    transform: translateY(-1px);
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.actions .btn {
+    margin: 0.1rem;
+}
+
+/* Loading state for buttons */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
+
 /* Quick Actions */
 .quick-actions {
     display: flex;
@@ -225,32 +265,7 @@ body {
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
-.stock-health {
-    margin-left: auto;
-    background: white;
-    padding: 15px 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
 
-.health-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 600;
-}
-
-.health-good {
-    color: #10b981;
-}
-
-.health-warning {
-    color: #f59e0b;
-}
-
-.health-critical {
-    color: #ef4444;
-}
 
 /* Stock Section */
 .stock-section {
@@ -632,12 +647,7 @@ body {
     .action-btn {
         justify-content: center;
     }
-    
-    .stock-health {
-        margin-left: 0;
-        text-align: center;
-    }
-    
+   
     .search-input {
         width: 200px;
     }

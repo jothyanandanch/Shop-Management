@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - SS Star Flex</title>    
-    <title>Dashboard - {{ current_user.username }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
@@ -40,6 +39,34 @@
                 </div>
             </div>
         </header>
+         <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash flash--{{ category }}" id="flash-{{ loop.index }}">
+                            <div class="flash__content">
+                                <div class="flash__icon">
+                                    {% if category == 'success' %}
+                                        <i class="fas fa-check-circle"></i>
+                                    {% elif category == 'error' %}
+                                        <i class="fas fa-exclamation-circle"></i>
+                                    {% elif category == 'warning' %}
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flash__message">{{ message }}</div>
+                                <button class="flash__close" onclick="closeFlash('flash-{{ loop.index }}')">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
         <!-- Main Content -->
         <main class="main">
@@ -150,7 +177,7 @@
                 </div>
             </div>
 
-            <!-- Pending Orders (Changed from Pending Bills) -->
+            <!-- Pending Orders -->
             <div class="section">
                 <div class="section__header">
                     <h2 class="section__title">
@@ -160,11 +187,15 @@
                             <span class="badge badge--count">{{ pending_orders|length if pending_orders else 0 }}</span>
                         </div>
                     </h2>
+                    <div class="search__container">
+                        <input type="text" class="search__input" placeholder="Search orders by customer..." id="orderSearch">
+                        <i class="fas fa-search search__icon"></i>
+                    </div>
                 </div>
-                <div class="bills">
+                <div class="bills" id="ordersContainer">
                     {% if pending_orders %}
                         {% for order in pending_orders %}
-                        <div class="bill-card">
+                        <div class="bill-card" data-customer="{{ order[1]|lower }}">
                             <div class="bill-card__customer">
                                 <i class="fas fa-user"></i>
                                 <span>{{ order[1] }}</span>
@@ -188,6 +219,10 @@
                         </div>
                     {% endif %}
                 </div>
+                <div id="noOrderResults" class="empty-state" style="display: none;">
+                    <i class="fas fa-search"></i>
+                    <p class="empty-state__message">No orders found matching your search</p>
+                </div>
             </div>
         </main>
     </div>
@@ -196,12 +231,23 @@
     <script type="application/json" id="allCardsData">
         {{ card_summary|tojson|safe }}
     </script>
+    
+    <script type="application/json" id="allOrdersData">
+        {{ pending_orders|tojson|safe }}
+    </script>
+    
+    <script type="application/json" id="userRole">
+        "{{ current_user.role }}"
+    </script>
 
     <script>
-        // Get all cards data for search functionality
+        // Get all data for search functionality
         const allCardsData = JSON.parse(document.getElementById('allCardsData').textContent);
+        const allOrdersData = JSON.parse(document.getElementById('allOrdersData').textContent);
+        const userRole = JSON.parse(document.getElementById('userRole').textContent);
+        const isAdmin = userRole === 'admin';
         
-        // Search functionality that works on entire database
+        // Card search functionality
         document.getElementById('cardSearch').addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase().trim();
             const tableBody = document.querySelector('#cardTable tbody');
@@ -227,9 +273,44 @@
             }
         });
         
+        // Order search functionality
+        document.getElementById('orderSearch').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            const ordersContainer = document.getElementById('ordersContainer');
+            const noOrderResults = document.getElementById('noOrderResults');
+            const allOrderCards = ordersContainer.querySelectorAll('.bill-card');
+            
+            if (searchTerm === '') {
+                // Show all orders when search is empty
+                allOrderCards.forEach(card => {
+                    card.style.display = 'block';
+                });
+                noOrderResults.style.display = 'none';
+            } else {
+                let hasVisibleOrders = false;
+                
+                // Filter orders based on customer name
+                allOrderCards.forEach(card => {
+                    const customerName = card.getAttribute('data-customer');
+                    if (customerName && customerName.includes(searchTerm)) {
+                        card.style.display = 'block';
+                        hasVisibleOrders = true;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                
+                // Show/hide no results message
+                if (hasVisibleOrders) {
+                    noOrderResults.style.display = 'none';
+                } else {
+                    noOrderResults.style.display = 'block';
+                }
+            }
+        });
+        
         function displayCards(cards) {
             const tableBody = document.querySelector('#cardTable tbody');
-            
             
             tableBody.innerHTML = cards.map(card => {
                 const remaining = card[2] - (card[4] || 0);
@@ -298,6 +379,34 @@
             font-size: 2rem;
             margin-bottom: 0.5rem;
             color: #9ca3af;
+        }
+        
+        .search__container {
+            position: relative;
+            margin-left: auto;
+        }
+        
+        .search__input {
+            padding: 0.5rem 2.5rem 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            width: 250px;
+        }
+        
+        .search__input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .search__icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            pointer-events: none;
         }
     </style>
 </body>
