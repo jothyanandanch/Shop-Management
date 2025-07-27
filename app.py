@@ -186,6 +186,7 @@ def create_order_route():
 
     if request.method == 'POST':
         customer_name = request.form.get('customer_name')
+        customer_phone=request.get('customer_phone')
         order_id = request.form.get('order_id')
         order_date = request.form.get('order_date')
         delivery_status = request.form.get('delivery_status')
@@ -193,7 +194,7 @@ def create_order_route():
         total_amount = request.form.get('total_amount')
         payment = request.form.get('payment_status')
         
-        curr_order_id = create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount, payment)
+        curr_order_id = create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount, payment,customer_phone)
 
         selected_card_ids = request.form.getlist('card_ids')
         for card_id in selected_card_ids:

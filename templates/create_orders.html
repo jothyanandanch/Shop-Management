@@ -50,22 +50,30 @@
 
         <form class="order-form" method="POST" action="/create_order">
           <!-- Customer Information -->
-          <div class="form-group">
+        <div class="form-group">
             <div class="input-group">
-              <label for="customer_name" class="form-label">Customer Name</label>
-              <input type="text" id="customer_name" name="customer_name" class="form-input" required>
+                <label for="customer_name" class="form-label">Customer Name</label>
+                <input type="text" id="customer_name" name="customer_name" class="form-input" required>
             </div>
-          </div>
+        </div>
 
-            <div class="form-group">
-                <div class="input-group">
-                    <label for="order_id" class="form-label">Order ID (auto-assigned: mmyyyyXXX)</label>
-                    <input type="number" id="order_id" name="order_id" class="form-input" 
-                           value="{{ suggested_order_id }}" required readonly>
-                    <small class="form-help">This ID is automatically assigned</small>
-                </div>
+        <div class="form-group">
+            <div class="input-group">
+                <label for="customer_phone" class="form-label">Customer Phone Number</label>
+                <input type="tel" id="customer_phone" name="customer_phone" class="form-input" 
+                       pattern="[0-9]{10}" placeholder="10-digit mobile number" required>
+                <small class="form-help">Enter 10-digit mobile number (e.g., 9876543210)</small>
             </div>
+        </div>
 
+        <div class="form-group">
+            <div class="input-group">
+                <label for="order_id" class="form-label">Order ID (auto-assigned: mmyyyyXXX)</label>
+                <input type="number" id="order_id" name="order_id" class="form-input" 
+                       value="{{ suggested_order_id }}" required readonly>
+                <small class="form-help">This ID is automatically assigned based on current month and year</small>
+            </div>
+        </div>
 
 
           <div class="form-group">
@@ -193,6 +201,19 @@
     <div class="floating-shape shape-3"></div>
   </div>
 <script>
+    // Add this to your existing form validation
+    document.getElementById('customer_phone').addEventListener('input', function() {
+        const phone = this.value.replace(/\D/g, ''); // Remove non-digits
+        
+        if (phone.length !== 10) {
+            this.setCustomValidity('Phone number must be exactly 10 digits');
+            this.style.borderColor = '#dc3545';
+        } else {
+            this.setCustomValidity('');
+            this.style.borderColor = '#28a745';
+        }
+    });
+
     document.addEventListener('DOMContentLoaded', function() {
         const cardCheckboxes = document.querySelectorAll('.card-checkbox');
         const quantityInputs = document.querySelectorAll('.quantity-input');

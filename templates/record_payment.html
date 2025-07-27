@@ -57,6 +57,10 @@
                             <span class="detail-value customer-name">{{ order[1] }}</span>
                         </div>
                         <div class="detail-row">
+                            <span class="detail-label">Phone Number:</span>
+                            <span class="detail-value">{{ order[2] if order[2] else 'Not provided' }}</span>
+                        </div>
+                        <div class="detail-row">
                             <span class="detail-label">Order ID:</span>
                             <span class="detail-value">{{ order[2] }}</span>
                         </div>

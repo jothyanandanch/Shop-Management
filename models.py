@@ -140,7 +140,7 @@ def delete_card_by_id(card_id):
 
 # ------------------- ORDER FUNCTIONS -------------------
 
-def create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status):
+def create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status,customer_phone):
     """Creates a new customer order."""
     conn, cursor = None, None
     try:
@@ -148,8 +148,8 @@ def create_order(customer_name, order_id, order_date, delivery_status, advance_p
         cursor = conn.cursor()
 
         command = """
-        INSERT INTO orders(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status)
-        VALUES(%s, %s, %s, %s, %s, %s, %s) RETURNING order_id
+        INSERT INTO orders(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status,customer_phone)
+        VALUES(%s, %s, %s, %s, %s, %s, %s, %s) RETURNING order_id
         """
         cursor.execute(command, (
             customer_name,
@@ -158,7 +158,8 @@ def create_order(customer_name, order_id, order_date, delivery_status, advance_p
             delivery_status,
             Decimal(str(advance_paid)),
             Decimal(str(total_amount)),
-            payment_status
+            payment_status,
+            customer_phone
         ))
         order_id = cursor.fetchone()[0]
         conn.commit()
@@ -205,7 +206,7 @@ def get_order_details(order_id):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, customer_name, order_id, order_date, total_amount, 
-                   advance_paid, delivery_status, payment_status 
+                   advance_paid, delivery_status, payment_status,customer_phone 
             FROM orders WHERE id = %s
         """, (order_id,))
         return cursor.fetchone()
@@ -225,7 +226,7 @@ def get_all_orders():
         
         cursor.execute("""
             SELECT id, customer_name, order_id, order_date, total_amount, 
-                   advance_paid, delivery_status, payment_status
+                   advance_paid, delivery_status, payment_status,customer_phone
             FROM orders 
             ORDER BY order_date DESC, id DESC
         """)

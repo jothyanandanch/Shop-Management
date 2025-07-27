@@ -45,7 +45,8 @@ def create_tables():
                 delivery_status TEXT CHECK(delivery_status IN ('Pending', 'Delivered')),
                 advance_paid DECIMAL(10,2) DEFAULT 0,
                 total_amount DECIMAL(10,2) DEFAULT 0,
-                payment_status TEXT CHECK(payment_status IN ('Paid','Pending'))
+                payment_status TEXT CHECK(payment_status IN ('Paid','Pending')),
+                customer_phone VARCHAR(15)
             )
             """,
             """
