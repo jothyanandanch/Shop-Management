@@ -69,6 +69,10 @@ def logout():
 
 # ---------------------- DASHBOARD ----------------------
 
+@app.route('/')
+def dashboard_redirect():
+    return redirect(url_for('dashboard'))
+
 @app.route('/dashboard')
 def dashboard():
     if not session.get('logged_in'):
