@@ -190,7 +190,7 @@ def create_order_route():
 
     if request.method == 'POST':
         customer_name = request.form.get('customer_name')
-        customer_phone=request.get('customer_phone')
+        customer_phone=request.form.get('customer_phone')
         order_id = request.form.get('order_id')
         order_date = request.form.get('order_date')
         delivery_status = request.form.get('delivery_status')

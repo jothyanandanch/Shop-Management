@@ -130,40 +130,76 @@
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                    <tbody>
-                    {% for order in orders %}
-                    {% set balance = order[5] - order[6] %}  <!-- Updated indices -->
-                    <tr class="order-row" 
-                        data-order-date="{{ order[4] }}" 
-                        data-payment-status="{{ order[8].lower() }}"
-                        data-delivery-status="{{ order[7].lower() }}">
-                        <td class="order-id">
-                            <div class="id-info">
-                                <i class="fas fa-hashtag"></i>
-                                <span>{{ order[3] }}</span>
-                            </div>
-                        </td>
-                        <td class="customer-name">
-                            <div class="customer-info">
-                                <i class="fas fa-user"></i>
-                                <span>{{ order[1] }}</span>
-                            </div>
-                        </td>
-                        <!-- ADD THIS PHONE NUMBER CELL -->
-                        <td class="customer-phone">
-                            <div class="phone-info">
-                                <i class="fas fa-phone"></i>
-                                <span>{{ order[2] if order[2] else 'N/A' }}</span>
-                            </div>
-                        </td>
-                        <td class="order-date">
-                            <span class="date-value">{{ order[4] }}</span>
-                        </td>
-                        <!-- Rest of your columns with updated indices -->
-                        <!-- ... -->
-                    </tr>
-                {% endfor %}
-            </tbody>
+                        <tbody>
+                            {% for order in orders %}
+                            {% set balance = order[4] - order[5] %}
+                            <tr class="order-row" 
+                                data-order-date="{{ order[3] }}" 
+                                data-payment-status="{{ order[7].lower() }}"
+                                data-delivery-status="{{ order[6].lower() }}">
+                                <td class="order-id">
+                                    <div class="id-info">
+                                        <i class="fas fa-hashtag"></i>
+                                        <span>{{ order[2] }}</span>  <!-- order_id is at index 2 -->
+                                    </div>
+                                </td>
+                                <td class="customer-name">
+                                    <div class="customer-info">
+                                        <i class="fas fa-user"></i>
+                                        <span>{{ order[1] }}</span>  <!-- customer_name is at index 1 -->
+                                    </div>
+                                </td>
+                                <td class="customer-phone">
+                                    <div class="phone-info">
+                                        <i class="fas fa-phone"></i>
+                                        <span>{{ order[8] if order[8] else 'N/A' }}</span>  <!-- customer_phone is at index 8 -->
+                                    </div>
+                                </td>
+                                <td class="order-date">
+                                    <span class="date-value">{{ order[3] }}</span>  <!-- order_date is at index 3 -->
+                                </td>
+                                <td class="total-amount">
+                                    <span class="amount-value">₹{{ "%.2f"|format(order[4]) }}</span>  <!-- total_amount is at index 4 -->
+                                </td>
+                                <td class="advance-paid">
+                                    <span class="advance-value">₹{{ "%.2f"|format(order[5]) }}</span>  <!-- advance_paid is at index 5 -->
+                                </td>
+                                <td class="balance">
+                                    <span class="balance-value {% if balance > 0 %}balance-pending{% elif balance == 0 %}balance-paid{% else %}balance-overpaid{% endif %}">
+                                        ₹{{ "%.2f"|format(balance) }}
+                                    </span>
+                                </td>
+                                <td class="payment-status">
+                                    <span class="status-badge status-{{ order[7].lower() }}">
+                                        <i class="fas fa-{{ 'clock' if order[7] == 'Pending' else 'check-circle' }}"></i>
+                                        {{ order[7] }}  <!-- payment_status is at index 7 -->
+                                    </span>
+                                </td>
+                                <td class="delivery-status">
+                                    <span class="status-badge status-{{ order[6].lower() }}">
+                                        <i class="fas fa-{{ 'truck' if order[6] == 'Pending' else 'check-circle' }}"></i>
+                                        {{ order[6] }}  <!-- delivery_status is at index 6 -->
+                                    </span>
+                                </td>
+                                <td class="actions">
+                                    <a href="{{ url_for('record_payment', order_id=order[0]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-credit-card"></i>
+                                        Payment
+                                    </a>
+                                    <button class="btn btn-sm btn-info" onclick="viewOrderDetails({{ order[0] }})">
+                                        <i class="fas fa-eye"></i>
+                                        Details
+                                    </button>
+                                    {% if session.user_role == 'admin' %}
+                                    <button class="btn btn-sm btn-danger" onclick="deleteOrder({{ order[0] }}, '{{ order[2] }}', '{{ order[1] }}')">
+                                        <i class="fas fa-trash"></i>
+                                        Delete
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -193,8 +229,7 @@
                         <thead>
                             <tr>
                                 <th>Order ID</th>
-                                <th>Customer Name</th>
-                                <th>Phone Number</th>
+                                <th>Customer</th>
                                 <th>Order Date</th>
                                 <th>Balance Amount</th>
                                 <th>Days Pending</th>
@@ -207,24 +242,17 @@
                             {% set balance = order[4] - order[5] %}
                             {% if order[7] == 'Pending' or order[6] == 'Pending' %}
                             <tr class="pending-row">
-                                <td class="order-id">{{ order[2] }}</td>
-                                <td class="customer">{{ order[1] }}</td>
-                                <td class="order-date">{{ order[3] }}</td>
+                                <td class="order-id">{{ order[2] }}</td>  <!-- order_id is at index 2 -->
+                                <td class="customer">{{ order[1] }}</td>   <!-- customer_name is at index 1 -->
+                                <td class="order-date">{{ order[3] }}</td> <!-- order_date is at index 3 -->
                                 <td class="balance">
                                     <span class="balance-value balance-pending">₹{{ "%.2f"|format(balance) }}</span>
                                 </td>
                                 <td class="days-pending">
-                                    <span class="days-count">{{ (moment().date() - moment(order[3]).date()).days if moment else 'N/A' }} days</span>
+                                    <span class="days-count">N/A days</span>
                                 </td>
                                 <td class="priority">
-                                    {% set days_diff = 7 %}
-                                    {% if days_diff > 7 %}
-                                    <span class="priority-badge priority-high">High</span>
-                                    {% elif days_diff > 3 %}
-                                    <span class="priority-badge priority-medium">Medium</span>
-                                    {% else %}
                                     <span class="priority-badge priority-low">Low</span>
-                                    {% endif %}
                                 </td>
                                 <td class="actions">
                                     <a href="{{ url_for('record_payment', order_id=order[0]) }}" class="btn btn-sm btn-primary">
@@ -343,7 +371,12 @@
             let paymentPending = 0;
             let deliveryPending = 0;
             
-            // Count would need more specific logic based on your data structure
+            pendingRows.forEach(row => {
+                // You can add more specific logic here based on your needs
+                paymentPending++;
+                deliveryPending++;
+            });
+            
             document.getElementById('pendingPaymentCount').textContent = paymentPending;
             document.getElementById('pendingDeliveryCount').textContent = deliveryPending;
         }
@@ -365,7 +398,8 @@
             });
             
             const healthElement = document.getElementById('ordersHealth');
-            const ratio = completed / (pending + completed);
+            const total = pending + completed;
+            const ratio = total > 0 ? completed / total : 1;
             
             if (ratio > 0.8) {
                 healthElement.textContent = 'Excellent';
@@ -501,12 +535,12 @@
 
         // View order details
         function viewOrderDetails(orderId) {
-            // You can implement this to show order details modal or redirect to details page
             alert(`Viewing details for Order ID: ${orderId}`);
+            // You can implement this to show order details modal or redirect to details page
             // window.location.href = `/order_details/${orderId}`;
         }
 
-                // Delete order with double confirmation and actual deletion
+        // Delete order with double confirmation
         function deleteOrder(orderId, orderNumber, customerName) {
             const firstConfirm = confirm(`Are you sure you want to delete Order #${orderNumber} for ${customerName}?\n\nThis action cannot be undone.`);
             
@@ -525,7 +559,7 @@
                 fetch(`/delete_order/${orderId}`, {
                     method: 'DELETE',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json'
                     }
                 })
                 .then(response => {
@@ -556,40 +590,39 @@
                 });
             }
         }
-        
-// Function to show flash messages dynamically
-function showFlashMessage(message, category) {
-    const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
-    
-    const flashDiv = document.createElement('div');
-    flashDiv.className = `flash flash--${category}`;
-    flashDiv.innerHTML = `
-        <div class="flash__message">${message}</div>
-        <button class="flash__close">&times;</button>
-    `;
-    
-    flashContainer.appendChild(flashDiv);
-    
-    // Add close functionality
-    flashDiv.querySelector('.flash__close').addEventListener('click', function() {
-        flashDiv.remove();
-    });
-    
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        if (flashDiv.parentNode) {
-            flashDiv.remove();
+
+        // Function to show flash messages dynamically
+        function showFlashMessage(message, category) {
+            const flashContainer = document.querySelector('.flash-messages') || createFlashContainer();
+            
+            const flashDiv = document.createElement('div');
+            flashDiv.className = `flash flash--${category}`;
+            flashDiv.innerHTML = `
+                <div class="flash__message">${message}</div>
+                <button class="flash__close">&times;</button>
+            `;
+            
+            flashContainer.appendChild(flashDiv);
+            
+            // Add close functionality
+            flashDiv.querySelector('.flash__close').addEventListener('click', function() {
+                flashDiv.remove();
+            });
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                if (flashDiv.parentNode) {
+                    flashDiv.remove();
+                }
+            }, 5000);
         }
-    }, 5000);
-}
 
-function createFlashContainer() {
-    const container = document.createElement('div');
-    container.className = 'flash-messages';
-    document.querySelector('.container').appendChild(container);
-    return container;
-}
-
+        function createFlashContainer() {
+            const container = document.createElement('div');
+            container.className = 'flash-messages';
+            document.querySelector('.container').appendChild(container);
+            return container;
+        }
 
         // Export orders functionality
         function exportOrders() {
