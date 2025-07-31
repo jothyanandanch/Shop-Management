@@ -1,4 +1,3 @@
-# app.py
 import time
 from flask import Flask, render_template, request, redirect, url_for, session, flash,jsonify
 from models import (
@@ -189,34 +188,49 @@ def create_order_route():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        # Get form data including customer phone
         customer_name = request.form.get('customer_name')
-        customer_phone=request.form.get('customer_phone')
-        order_id = request.form.get('order_id')
+        customer_phone = request.form.get('customer_phone')
+        order_id = request.form.get('order_id')  # business order number
         order_date = request.form.get('order_date')
         delivery_status = request.form.get('delivery_status')
         advance_paid = request.form.get('advance')
         total_amount = request.form.get('total_amount')
-        payment = request.form.get('payment_status')
-        
-        curr_order_id = create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount, payment,customer_phone)
+        payment_status = request.form.get('payment_status')
 
+        curr_order_db_id = create_order(
+            customer_name,
+            customer_phone,
+            order_id,
+            order_date,
+            delivery_status,
+            advance_paid,
+            total_amount,
+            payment_status
+        )
+
+        if not curr_order_db_id:
+            flash('Failed to create order!', 'error')
+            return redirect(url_for('create_order_route'))
+
+        # Link cards to the order with DB primary key, not business order number
         selected_card_ids = request.form.getlist('card_ids')
         for card_id in selected_card_ids:
             quantity = request.form.get(f'quantities_{card_id}')
             if quantity:
-                link_card_to_order(curr_order_id, int(card_id), int(quantity))
+                link_card_to_order(curr_order_db_id, int(card_id), int(quantity))
 
         flash('Order created successfully!', 'success')
         return redirect(url_for('create_order_route'))
 
-    # GET request - generate the next order ID
+    # GET Request
     available_cards = get_all_cards()
-    next_order_id = generate_order_id()  
-    
-    return render_template('create_orders.html', 
-                         card_types=available_cards, 
-                         suggested_order_id=next_order_id)  
-
+    next_order_id = generate_order_id()
+    return render_template(
+        'create_orders.html',
+        card_types=available_cards,
+        suggested_order_id=next_order_id
+    )
 
 @app.route('/view_orders')
 def view_orders():
@@ -231,23 +245,19 @@ def view_orders():
 def delete_order(order_id):
     if not session.get('logged_in'):
         return jsonify({'error': 'Not logged in'}), 401
-    
+
     if session.get('user_role') != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
-    
+
     try:
-        
         success = delete_order_by_id(order_id)
-        
         if success:
             return jsonify({'message': 'Order deleted successfully'}), 200
         else:
             return jsonify({'error': 'Failed to delete order'}), 500
-            
     except Exception as e:
         print(f"Error deleting order: {e}")
         return jsonify({'error': 'Server error'}), 500
-
 
 
 

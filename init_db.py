@@ -16,59 +16,53 @@ def create_tables():
             return
         
         cursor = conn.cursor()
-        
-        # Fixed SQL commands for PostgreSQL
+
+
         commands = (
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id BIGSERIAL NOT NULL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS cards (
-                id BIGSERIAL PRIMARY KEY,
-                card_type TEXT UNIQUE NOT NULL,
-                quantity INTEGER NOT NULL,
-                price DECIMAL(10,2) NOT NULL,
-                allocated INTEGER DEFAULT 0
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS orders (
-                id BIGSERIAL PRIMARY KEY,
-                customer_name TEXT NOT NULL,
-                order_id INTEGER NOT NULL UNIQUE,
-                order_date DATE NOT NULL,
-                delivery_status TEXT CHECK(delivery_status IN ('Pending', 'Delivered')),
-                advance_paid DECIMAL(10,2) DEFAULT 0,
-                total_amount DECIMAL(10,2) DEFAULT 0,
-                payment_status TEXT CHECK(payment_status IN ('Paid','Pending')),
-                customer_phone VARCHAR(15)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS order_cards (
-                id BIGSERIAL PRIMARY KEY,
-                order_id INTEGER REFERENCES orders(order_id),
-                card_id INTEGER REFERENCES cards(id),
-                quantity INTEGER NOT NULL
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS transactions (
-                id BIGSERIAL PRIMARY KEY,
-                order_id INTEGER NOT NULL,
-                transaction_date DATE NOT NULL,
-                amount DECIMAL(10,2) NOT NULL,
-                note TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (order_id) REFERENCES orders(id)
-            )
-            """
-        )
+        """CREATE TABLE IF NOT EXISTS users (
+            id BIGSERIAL NOT NULL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS cards (
+            id BIGSERIAL PRIMARY KEY,
+            card_type TEXT UNIQUE NOT NULL,
+            quantity INTEGER NOT NULL,
+            price DECIMAL(10,2) NOT NULL,
+            allocated INTEGER DEFAULT 0
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS orders (
+            id BIGSERIAL PRIMARY KEY,
+            customer_name TEXT NOT NULL,
+            order_id INTEGER NOT NULL UNIQUE,
+            order_date DATE NOT NULL,
+            delivery_status TEXT CHECK(delivery_status IN ('Pending', 'Delivered')),
+            advance_paid DECIMAL(10,2) DEFAULT 0,
+            total_amount DECIMAL(10,2) DEFAULT 0,
+            payment_status TEXT CHECK(payment_status IN ('Paid','Pending')),
+            customer_phone VARCHAR(15)
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS order_cards (
+            id BIGSERIAL PRIMARY KEY,
+            order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+            card_id INTEGER REFERENCES cards(id) ON DELETE CASCADE,
+            quantity INTEGER NOT NULL
+        )""",
+
+        """CREATE TABLE IF NOT EXISTS transactions (
+            id BIGSERIAL PRIMARY KEY,
+            order_id INTEGER NOT NULL,
+            transaction_date DATE NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id)
+        )"""
+    )
         
         for command in commands:
             print(f"Executing: {command.strip().splitlines()[1].strip()}...")

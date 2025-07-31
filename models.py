@@ -140,63 +140,73 @@ def delete_card_by_id(card_id):
 
 # ------------------- ORDER FUNCTIONS -------------------
 
-def create_order(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status,customer_phone):
-    """Creates a new customer order."""
+def create_order(customer_name, customer_phone, order_id, order_date, delivery_status, advance_paid, total_amount, payment_status):
+    """Creates a new customer order. Returns DB primary key id."""
     conn, cursor = None, None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        command = """
-        INSERT INTO orders(customer_name, order_id, order_date, delivery_status, advance_paid, total_amount,payment_status,customer_phone)
-        VALUES(%s, %s, %s, %s, %s, %s, %s, %s) RETURNING order_id
-        """
-        cursor.execute(command, (
+        cursor.execute("""
+            INSERT INTO orders (customer_name, customer_phone, order_id, order_date, delivery_status, advance_paid, total_amount, payment_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
             customer_name,
+            customer_phone,
             order_id,
             order_date,
             delivery_status,
             Decimal(str(advance_paid)),
             Decimal(str(total_amount)),
-            payment_status,
-            customer_phone
+            payment_status
         ))
-        order_id = cursor.fetchone()[0]
-        conn.commit()
-        return order_id
 
-    except Error as e:
+        db_order_id = cursor.fetchone()[0]   # DATABASE PK!
+        conn.commit()
+        return db_order_id
+
+    except Exception as e:
         print(f"Error creating order: {e}")
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         return None
+
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
 
 
-def link_card_to_order(order_id, card_id, quantity):
-    """Links a card and quantity to a specific order."""
+
+def link_card_to_order(order_db_id, card_id, quantity):
+    """Links a card and quantity to a specific order (using DB PK)."""
     conn, cursor = None, None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        command = """INSERT INTO order_cards(order_id, card_id, quantity) VALUES(%s, %s, %s)"""
-        cursor.execute(command, (order_id, card_id, quantity))
+        cursor.execute("""
+            INSERT INTO order_cards (order_id, card_id, quantity) VALUES (%s, %s, %s)
+        """, (order_db_id, card_id, quantity))
 
-        cards_command="""UPDATE cards SET allocated=COALESCE(allocated,0)+%s WHERE id=%s
-        """
-        cursor.execute(cards_command,(quantity,card_id))
+        cursor.execute("""
+            UPDATE cards SET allocated = COALESCE(allocated, 0) + %s WHERE id = %s
+        """, (quantity, card_id))
+
         conn.commit()
         return True
 
-    except Error as e:
+    except Exception as e:
         print(f"Error linking card to order: {e}")
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         return False
+
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
+
+
 
 def get_order_details(order_id):
     """Get order details by ID"""
@@ -242,67 +252,59 @@ def get_all_orders():
 
 
 def delete_order_by_id(order_id):
-    """Delete an order and all its related data"""
+    """Deletes an order and all related allocations and transactions safely."""
     conn, cursor = None, None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        print(f"Debug: Attempting to delete order {order_id}")  # Add debug
-        
-        # Check if order has card allocations
-        cursor.execute("""
-            SELECT COUNT(*) FROM order_cards WHERE order_id = %s
-        """, (order_id,))
-        
+
+        print(f"Debug: Attempting to delete order {order_id}")
+
+        # Find card allocations related to this order
+        cursor.execute("""SELECT COUNT(*) FROM order_cards WHERE order_id = %s""", (order_id,))
         card_allocations = cursor.fetchone()[0]
-        print(f"Debug: Found {card_allocations} card allocations")  # Add debug
-        
+        print(f"Debug: Found {card_allocations} card allocations")
+
         if card_allocations > 0:
-            # First, restore allocated quantities back to available
+            # Restore allocated quantities before deletion
             cursor.execute("""
-                UPDATE cards 
+                UPDATE cards
                 SET allocated = COALESCE(allocated, 0) - oc.quantity
-                FROM order_cards oc 
+                FROM order_cards oc
                 WHERE cards.id = oc.card_id AND oc.order_id = %s
             """, (order_id,))
             print(f"Debug: Restored {cursor.rowcount} card allocations")
-        
-        # Check if order has payment transactions
-        cursor.execute("""
-            SELECT COUNT(*) FROM transactions WHERE order_id = %s
-        """, (order_id,))
-        
+
+        # Find payment transactions related to this order
+        cursor.execute("""SELECT COUNT(*) FROM transactions WHERE order_id = %s""", (order_id,))
         transaction_count = cursor.fetchone()[0]
         print(f"Debug: Found {transaction_count} payment transactions")
-        
-        # Delete in correct order to handle foreign key constraints
-        # 1. Delete payment transactions first
+
+        # Delete transactions first (FK constraint)
         cursor.execute("DELETE FROM transactions WHERE order_id = %s", (order_id,))
-        print(f"Debug: Deleted {cursor.rowcount} transaction records")
-        
-        # 2. Delete order-card allocations
+        print(f"Debug: Deleted {cursor.rowcount} transactions")
+
+        # Delete allocations
         cursor.execute("DELETE FROM order_cards WHERE order_id = %s", (order_id,))
         print(f"Debug: Deleted {cursor.rowcount} order_cards records")
-        
-        # 3. Delete the main order
+
+        # Delete the order itself
         cursor.execute("DELETE FROM orders WHERE id = %s", (order_id,))
         print(f"Debug: Deleted {cursor.rowcount} order records")
-        
+
         conn.commit()
         print("Debug: Order deletion transaction committed successfully")
         return True
-        
+
     except Exception as e:
         print(f"Error deleting order: {e}")
-        print(f"Error type: {type(e).__name__}")
         if conn:
             conn.rollback()
         return False
+
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
-
 
 
 def generate_order_id():
