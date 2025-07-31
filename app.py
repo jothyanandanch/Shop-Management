@@ -54,7 +54,7 @@ def login():
             return redirect(url_for('dashboard'))
         else:
             flash('Incorrect password.', 'error')
-            print(">>> wrong password")
+            print("Wrong password")
 
     return render_template('login.html')
 
