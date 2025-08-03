@@ -4,9 +4,9 @@ from psycopg2 import Error
 def get_db_connection():
     try:
         conn=psycopg2.connect(
-            dbname='shop',
+            dbname='your-database',
             user='postgres',
-            password='nandu',
+            password='your-password',
             host='localhost',
             port='5432'
         )
