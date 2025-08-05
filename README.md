@@ -31,7 +31,8 @@ Python 3.7 or higher
 PostgreSQL 12 or higher
 pip (Python package installer)
 🚀 Installation & Setup
-1. Clone the Repository
+1. Clone the Repository:
+
 git clone https://github.com/jothyanandanch/shop-management.git
 
 2. Install Dependencies
